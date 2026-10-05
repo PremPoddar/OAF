@@ -129,7 +129,7 @@ object Detector {
             "dockerfile" -> return Result(FileKind.CODE, Lang.DOCKERFILE)
             "makefile", "gnumakefile" -> return Result(FileKind.CODE, Lang.MAKEFILE)
         }
-        val start = String(head, 0, minOf(head.size, 512), Charsets.UTF_8).trimStart('﻿', ' ', '\n', '\r', '\t')
+        val start = String(head, 0, minOf(head.size, 512), Charsets.UTF_8).trimStart('\uFEFF', ' ', '\n', '\r', '\t')
         return when {
             start.startsWith("<?xml") && start.contains("<svg") -> Result(FileKind.SVG)
             start.startsWith("<svg") -> Result(FileKind.SVG)

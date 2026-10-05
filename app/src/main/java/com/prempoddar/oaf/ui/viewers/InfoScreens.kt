@@ -4,7 +4,6 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
-import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,17 +98,14 @@ fun ApkScreen(source: DocSource, onBack: () -> Unit) {
             runCatching {
                 val file = source.local(context)
                 val pm = context.packageManager
-                @Suppress("DEPRECATION")
-                val flags = PackageManager.GET_PERMISSIONS or if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+                val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_SIGNING_CERTIFICATES
                 val p: PackageInfo = pm.getPackageArchiveInfo(file.path, flags) ?: error("This isn't a readable app package")
                 val app = p.applicationInfo!!.apply { sourceDir = file.path; publicSourceDir = file.path }
-                @Suppress("DEPRECATION")
-                val cert = if (Build.VERSION.SDK_INT >= 28) p.signingInfo?.apkContentsSigners?.firstOrNull() else p.signatures?.firstOrNull()
+                val cert = p.signingInfo?.apkContentsSigners?.firstOrNull()
                 val installed = runCatching { pm.getPackageInfo(p.packageName, 0).versionName }.getOrNull()
                 ApkInfo(
                     app.loadLabel(pm).toString(), runCatching { app.loadIcon(pm) }.getOrNull(), p.packageName, p.versionName ?: "—",
-                    if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else @Suppress("DEPRECATION") p.versionCode.toLong(),
-                    if (Build.VERSION.SDK_INT >= 24) app.minSdkVersion else null, app.targetSdkVersion,
+                    p.longVersionCode, app.minSdkVersion, app.targetSdkVersion,
                     p.requestedPermissions?.toList().orEmpty().sorted(),
                     cert?.toByteArray()?.let { MessageDigest.getInstance("SHA-256").digest(it).joinToString(":") { b -> "%02X".format(b) } },
                     installed, file.length(),

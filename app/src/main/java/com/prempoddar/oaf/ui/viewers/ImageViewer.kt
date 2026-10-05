@@ -111,7 +111,7 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
                 runCatching {
                     val base = (loaded as? Loaded.Still)?.bitmap ?: ImageDecoder.decodeBitmap(ImageDecoder.createSource(source.local(context))) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
                     val turned = if (rotation == 0f) base else Bitmap.createBitmap(base, 0, 0, base.width, base.height, android.graphics.Matrix().apply { postRotate(rotation) }, true)
-                    val format = when (mime) { "image/jpeg" -> Bitmap.CompressFormat.JPEG; "image/webp" -> Bitmap.CompressFormat.WEBP_LOSSY; else -> Bitmap.CompressFormat.PNG }
+                    val format = when (mime) { "image/jpeg" -> Bitmap.CompressFormat.JPEG; "image/webp" -> if (android.os.Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else @Suppress("DEPRECATION") Bitmap.CompressFormat.WEBP; else -> Bitmap.CompressFormat.PNG }
                     // JPEG has no transparency: transparent areas become white rather than black.
                     val out = if (format == Bitmap.CompressFormat.JPEG && turned.hasAlpha()) Bitmap.createBitmap(turned.width, turned.height, Bitmap.Config.ARGB_8888).also { b ->
                         android.graphics.Canvas(b).apply { drawColor(android.graphics.Color.WHITE); drawBitmap(turned, 0f, 0f, null) }

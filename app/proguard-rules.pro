@@ -1,6 +1,7 @@
 # Libraries written for the desktop JVM reference classes Android doesn't have; the code paths
 # OAF uses don't touch them.
 -dontwarn java.awt.**
+-dontwarn javax.swing.**
 -dontwarn javax.imageio.**
 -dontwarn javax.xml.stream.**
 -dontwarn org.apache.logging.log4j.**

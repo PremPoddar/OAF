@@ -3,6 +3,7 @@ package com.prempoddar.oaf.engine
 import androidx.compose.runtime.Composable
 import com.prempoddar.oaf.format.FileKind
 import com.prempoddar.oaf.io.DocSource
+import com.prempoddar.oaf.ui.viewers.DocScreen
 import com.prempoddar.oaf.ui.viewers.HexViewer
 import com.prempoddar.oaf.ui.viewers.ImageViewer
 import com.prempoddar.oaf.ui.viewers.MediaViewer
@@ -28,6 +29,7 @@ object NativeEngine : DocumentEngine {
         FileKind.IMAGE, FileKind.SVG -> { s, back, _ -> ImageViewer(s, back) }
         FileKind.AUDIO, FileKind.VIDEO -> { s, back, _ -> MediaViewer(s, back) }
         FileKind.TEXT, FileKind.CODE, FileKind.MARKDOWN, FileKind.HTML, FileKind.JSON, FileKind.XML, FileKind.YAML -> { s, back, _ -> TextScreen(s, back) }
+        FileKind.DOCX, FileKind.DOC, FileKind.ODT, FileKind.RTF -> { s, back, _ -> DocScreen(s, back) }
         FileKind.XLSX, FileKind.XLS, FileKind.ODS, FileKind.CSV, FileKind.TSV -> { s, back, _ -> SheetScreen(s, back) }
         else -> null
     }

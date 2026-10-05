@@ -189,7 +189,7 @@ data class Para(
             for (r in runs) {
                 if (r.text.isEmpty() && !r.isObject) continue
                 val last = out.lastOrNull()
-                if (last != null && !last.isObject && !r.isObject && last.style == r.style && last.link === r.link && last.rPr === r.rPr) {
+                if (last != null && !last.isObject && !r.isObject && last.style == r.style && last.link === r.link && last.linkTarget == r.linkTarget && last.rPr === r.rPr && last.charStyle == r.charStyle) {
                     out[out.lastIndex] = last.copy(text = last.text + r.text)
                 } else out += r
             }

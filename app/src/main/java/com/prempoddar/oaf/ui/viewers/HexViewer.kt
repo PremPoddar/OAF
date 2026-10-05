@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,7 +45,7 @@ fun HexViewer(source: DocSource, onBack: () -> Unit, note: String? = null) {
     ViewerScaffold(
         title = source.name, subtitle = "${source.kind.label} · ${humanSize(file?.length() ?: source.size.coerceAtLeast(0))}",
         chrome = rememberChrome(), autoHide = false, onBack = onBack,
-        actions = { IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.Rounded.OpenInNew, "Open with") } },
+        actions = { IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.AutoMirrored.Rounded.OpenInNew, "Open with") } },
     ) {
         val f = file
         val raf = androidx.compose.runtime.remember(f) { f?.let { RandomAccessFile(it, "r") } }

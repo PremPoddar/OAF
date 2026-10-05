@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -78,7 +78,7 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
     }
     ViewerScaffold(
         title = source.name, chrome = rememberChrome(), autoHide = !audio, onBack = onBack,
-        actions = { IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.Rounded.OpenInNew, "Open with") } },
+        actions = { IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.AutoMirrored.Rounded.OpenInNew, "Open with") } },
     ) {
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (audio) {

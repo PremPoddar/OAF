@@ -36,11 +36,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.InsertDriveFile
+import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DriveFileMove
+import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.rounded.DriveFileRenameOutline
 import androidx.compose.material.icons.rounded.FolderZip
 import androidx.compose.material.icons.rounded.MoreVert
@@ -187,7 +187,7 @@ fun BrowserScreen(onOpen: (DocSource) -> Unit, onBin: () -> Unit, onStorage: () 
                     IconButton(onClick = { selected.clear() }) { Icon(Icons.Rounded.Close, "Clear selection") }
                     Text("${selected.size} selected", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     IconButton(onClick = { pending = Pending.COPY to selected.toList(); selected.clear() }) { Icon(Icons.Rounded.ContentCopy, "Copy") }
-                    IconButton(onClick = { pending = Pending.MOVE to selected.toList(); selected.clear() }) { Icon(Icons.Rounded.DriveFileMove, "Move") }
+                    IconButton(onClick = { pending = Pending.MOVE to selected.toList(); selected.clear() }) { Icon(Icons.AutoMirrored.Rounded.DriveFileMove, "Move") }
                     if (selected.size == 1) IconButton(onClick = { renaming = selected.first() }) { Icon(Icons.Rounded.DriveFileRenameOutline, "Rename") }
                     IconButton(onClick = {
                         val items = selected.toList()
@@ -452,7 +452,7 @@ private fun NoAccess(onAllow: () -> Unit, onPick: () -> Unit, recents: List<Pair
         )
         Button(onClick = onAllow, modifier = Modifier.fillMaxWidth()) { Text("Allow access to files") }
         OutlinedButton(onClick = onPick, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Icon(Icons.Outlined.InsertDriveFile, null); Text("  Pick a file instead")
+            Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, null); Text("  Pick a file instead")
         }
         if (recents.isNotEmpty()) {
             Text("RECENT", style = MaterialTheme.typography.labelSmall, color = paper.faint, modifier = Modifier.padding(top = 24.dp, bottom = 6.dp))

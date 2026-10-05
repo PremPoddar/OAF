@@ -131,19 +131,32 @@ class Sheet(var name: String) {
         }
     }
 
-    /** Sorts rows [fromRow]..maxRow by column [col]: numbers before text, empties last. */
-    fun sortBy(col: Int, fromRow: Int, ascending: Boolean) {
-        val last = maxRow
+    /**
+     * Sorts rows [fromRow]..[toRow] by column [col]: numbers before text, empties last. Formulas move
+     * like copied cells, so references to their own row still point at it.
+     */
+    fun sortBy(col: Int, fromRow: Int, ascending: Boolean, toRow: Int = maxRow) {
+        val last = minOf(toRow, maxRow)
         if (last <= fromRow) return
         rowsChanged = true
-        val rows = (fromRow..last).map { r -> (0..maxCol).map { c -> this[r, c] } }
-        val sorted = rows.sortedWith { a, b ->
+        val width = maxCol
+        val rows = (fromRow..last).map { r -> r to (0..width).map { c -> this[r, c] } }
+        val sorted = rows.sortedWith { (_, a), (_, b) ->
             val va = a.getOrNull(col)?.value ?: Value.Empty
             val vb = b.getOrNull(col)?.value ?: Value.Empty
             val cmp = compareValues(va, vb)
             if (ascending) cmp else if (va == Value.Empty || vb == Value.Empty) cmp else -cmp
         }
-        sorted.forEachIndexed { i, row -> row.forEachIndexed { c, cell -> val k = key(fromRow + i, c); if (cell == null) cells.remove(k) else cells[k] = cell } }
+        sorted.forEachIndexed { i, (from, row) ->
+            val to = fromRow + i
+            row.forEachIndexed { c, cell ->
+                val k = key(to, c)
+                if (cell == null) cells.remove(k) else {
+                    if (cell.isFormula && to != from) cell.input = Refs.shift(cell.input, to - from, 0)
+                    cells[k] = cell
+                }
+            }
+        }
     }
 
     private fun compareValues(a: Value, b: Value): Int {

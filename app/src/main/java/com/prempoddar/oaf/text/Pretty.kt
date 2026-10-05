@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
 /** Re-indents JSON and XML for reading. Returns null when the input isn't valid. */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 object Pretty {
     private val json = Json { prettyPrint = true; prettyPrintIndent = "  " }
 

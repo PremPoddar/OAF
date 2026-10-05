@@ -11,8 +11,8 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.RotateRight
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.RotateRight
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -94,9 +94,9 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         title = source.name, subtitle = (loaded as? Loaded.Still)?.bitmap?.let { "${it.width} × ${it.height}" },
         chrome = chrome, onBack = onBack,
         actions = {
-            IconButton(onClick = { rotation = (rotation + 90f) % 360f }) { Icon(Icons.Rounded.RotateRight, "Rotate") }
+            IconButton(onClick = { rotation = (rotation + 90f) % 360f }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Rotate") }
             IconButton(onClick = { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
-            IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.Rounded.OpenInNew, "Open with") }
+            IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.AutoMirrored.Rounded.OpenInNew, "Open with") }
         },
     ) {
         Box(

@@ -6,6 +6,7 @@ import com.prempoddar.oaf.io.DocSource
 import com.prempoddar.oaf.ui.viewers.HexViewer
 import com.prempoddar.oaf.ui.viewers.ImageViewer
 import com.prempoddar.oaf.ui.viewers.MediaViewer
+import com.prempoddar.oaf.ui.viewers.TextScreen
 
 typealias Viewer = @Composable (source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> Unit) -> Unit
 
@@ -25,6 +26,7 @@ object NativeEngine : DocumentEngine {
     override fun viewer(kind: FileKind): Viewer? = when (kind) {
         FileKind.IMAGE, FileKind.SVG -> { s, back, _ -> ImageViewer(s, back) }
         FileKind.AUDIO, FileKind.VIDEO -> { s, back, _ -> MediaViewer(s, back) }
+        FileKind.TEXT, FileKind.CODE, FileKind.MARKDOWN, FileKind.HTML, FileKind.JSON, FileKind.XML, FileKind.YAML -> { s, back, _ -> TextScreen(s, back) }
         else -> null
     }
 }

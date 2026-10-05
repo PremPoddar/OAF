@@ -75,8 +75,8 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
     implementation(libs.pdfbox)
-    implementation(libs.poi) { exclude(group = "org.apache.logging.log4j") }
-    implementation(libs.poi.scratchpad) { exclude(group = "org.apache.logging.log4j") }
+    implementation(libs.poi)
+    implementation(libs.poi.scratchpad)
     implementation(libs.commons.compress)
     implementation(libs.xz)
     implementation(libs.junrar)

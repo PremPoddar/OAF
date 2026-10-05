@@ -58,6 +58,8 @@ data class CellStyle(
 
 /** What the user typed ([input]: a literal or "=FORMULA") and what it computes to. */
 class Cell(var input: String, var value: Value = Value.Empty, var style: CellStyle = CellStyle.DEFAULT) {
+    /** The value saved in the file, used when a formula needs a function OAF doesn't have. */
+    var cached: Value? = null
     val isFormula get() = input.startsWith("=") && input.length > 1
 }
 
@@ -73,6 +75,9 @@ class Sheet(var name: String) {
     var frozenCols = 0
     /** Index of this sheet's XML part in the original file, if it came from one. */
     var sourcePart: String? = null
+    /** Set when rows or columns moved, so saving rebuilds the layout instead of keeping the original. */
+    var rowsChanged = false
+    var colsChanged = false
 
     fun key(r: Int, c: Int) = (r.toLong() shl 20) or c.toLong()
     fun row(key: Long) = (key shr 20).toInt()
@@ -86,6 +91,7 @@ class Sheet(var name: String) {
             cells.remove(key(r, c)); return
         }
         if (existing != null) {
+            if (existing.input != input) existing.cached = null
             existing.input = input
             if (style != null) existing.style = style
         } else {
@@ -98,6 +104,7 @@ class Sheet(var name: String) {
 
     /** Shifts cells at or after [at] by [count] rows (negative deletes). Formulas are left as typed. */
     fun shiftRows(at: Int, count: Int) {
+        rowsChanged = true
         val moved = cells.entries.map { it.key to it.value }
         cells.clear()
         moved.forEach { (k, cell) ->
@@ -111,6 +118,7 @@ class Sheet(var name: String) {
     }
 
     fun shiftCols(at: Int, count: Int) {
+        colsChanged = true
         val moved = cells.entries.map { it.key to it.value }
         cells.clear()
         moved.forEach { (k, cell) ->
@@ -127,6 +135,7 @@ class Sheet(var name: String) {
     fun sortBy(col: Int, fromRow: Int, ascending: Boolean) {
         val last = maxRow
         if (last <= fromRow) return
+        rowsChanged = true
         val rows = (fromRow..last).map { r -> (0..maxCol).map { c -> this[r, c] } }
         val sorted = rows.sortedWith { a, b ->
             val va = a.getOrNull(col)?.value ?: Value.Empty
@@ -162,6 +171,28 @@ class Workbook(val sheets: MutableList<Sheet> = mutableListOf(Sheet("Sheet1"))) 
                 cell.value = if (cell.isFormula) evaluator.cellValue(s, s.row(k), s.col(k)) else literal(cell.input)
             }
         }
+    }
+
+    /** Inserts (or, with negative [count], deletes) rows and fixes every formula that points across them. */
+    fun shiftRows(sheet: Sheet, at: Int, count: Int) {
+        sheet.shiftRows(at, count)
+        sheet.merges.replaceAll { m -> if (m.r1 >= at) m.copy(r1 = m.r1 + count, r2 = m.r2 + count) else m }
+        sheet.merges.removeAll { it.r1 < 0 || it.r2 < it.r1 }
+        fixFormulas(sheet, rows = true, at, count)
+    }
+
+    fun shiftCols(sheet: Sheet, at: Int, count: Int) {
+        sheet.shiftCols(at, count)
+        val widths = sheet.colWidths.toMap()
+        sheet.colWidths.clear()
+        widths.forEach { (c, w) -> if (c < at) sheet.colWidths[c] = w else if (count > 0 || c >= at - count) sheet.colWidths[c + count] = w }
+        sheet.merges.replaceAll { m -> if (m.c1 >= at) m.copy(c1 = m.c1 + count, c2 = m.c2 + count) else m }
+        sheet.merges.removeAll { it.c1 < 0 || it.c2 < it.c1 }
+        fixFormulas(sheet, rows = false, at, count)
+    }
+
+    private fun fixFormulas(target: Sheet, rows: Boolean, at: Int, count: Int) = sheets.forEach { s ->
+        s.cells.values.forEach { if (it.isFormula) it.input = Refs.adjust(it.input, s.name, target.name, rows, at, count) }
     }
 
     fun uniqueSheetName(base: String = "Sheet"): String {

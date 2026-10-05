@@ -22,3 +22,4 @@
 -keep class com.tom_roush.fontbox.** { *; }
 -keepclassmembers class com.prempoddar.oaf.** { *** Companion; }
 -keepclasseswithmembers class com.prempoddar.oaf.** { kotlinx.serialization.KSerializer serializer(...); }
+-keep class org.apache.logging.log4j.** { *; }

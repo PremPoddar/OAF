@@ -183,7 +183,7 @@ class Evaluator(private val wb: Workbook, private val today: () -> LocalDate = {
         val cell = sheet[r, c] ?: return Value.Empty
         if (!cell.isFormula) return Workbook.literal(cell.input).also { done[key] = it }
         if (!visiting.add(key)) return Value.CIRC
-        val v = try {
+        var v = try {
             val node = parsed.getOrPut(cell.input) { runCatching { FormulaParser(cell.input).parse() }.getOrNull() } ?: throw FormulaError(Value.Err("#ERROR!"))
             when (val res = eval(node, sheet)) {
                 is R.S -> res.v.let { if (it == Value.Empty) Value.Num(0.0) else it }
@@ -194,6 +194,7 @@ class Evaluator(private val wb: Workbook, private val today: () -> LocalDate = {
         } catch (e: StackOverflowError) {
             Value.CIRC
         }
+        if (v == Value.NAME) cell.cached?.let { v = it }
         visiting.remove(key)
         done[key] = v
         return v
@@ -611,5 +612,73 @@ object NumFmt {
         out = out.replace("hh", "%02d".format(secs / 3600)).replace(Regex("(?<![a-z])h(?![a-z])"), (secs / 3600).toString())
         out = out.replace("ss", "%02d".format(secs % 60))
         return out
+    }
+}
+
+/** Rewrites the cell references inside formulas: for fill/paste and for inserted or deleted rows and columns. */
+object Refs {
+    private val REF = Regex("(?<![A-Za-z0-9_.\$])((?:'(?:[^']|'')+'|[A-Za-z_][A-Za-z0-9_.]*)!)?(\\$?)([A-Za-z]{1,3})(\\$?)(\\d+)(?::(\\$?)([A-Za-z]{1,3})(\\$?)(\\d+))?(?![A-Za-z0-9_(])")
+
+    private class End(val absC: Boolean, var c: Int, val absR: Boolean, var r: Int) {
+        override fun toString() = (if (absC) "$" else "") + A1.colName(c) + (if (absR) "$" else "") + (r + 1)
+    }
+
+    /** Applies [f] to every reference outside string literals. [f] gets the sheet prefix (or null) and both ends; returns false for #REF!. */
+    private fun map(formula: String, f: (sheet: String?, a: End, b: End?) -> Boolean): String {
+        val out = StringBuilder()
+        var i = 0
+        while (i < formula.length) {
+            val q = formula.indexOf('"', i)
+            val end = if (q < 0) formula.length else q
+            out.append(REF.replace(formula.substring(i, end)) { m ->
+                val g = m.groupValues
+                val sheet = g[1].takeIf { it.isNotEmpty() }?.dropLast(1)?.removeSurrounding("'")?.replace("''", "'")
+                val a = End(g[2].isNotEmpty(), A1.colIndex(g[3]), g[4].isNotEmpty(), g[5].toInt() - 1)
+                val b = if (g[7].isNotEmpty()) End(g[6].isNotEmpty(), A1.colIndex(g[7]), g[8].isNotEmpty(), g[9].toInt() - 1) else null
+                if (a.r < 0 || a.c < 0) return@replace m.value
+                if (!f(sheet, a, b) || a.r < 0 || a.c < 0 || (b != null && (b.r < 0 || b.c < 0))) "#REF!"
+                else g[1] + a + (if (b != null) ":$b" else "")
+            })
+            if (q < 0) break
+            val close = formula.indexOf('"', q + 1).let { if (it < 0) formula.length - 1 else it }
+            out.append(formula, q, close + 1)
+            i = close + 1
+            // A doubled quote inside a string continues it.
+            while (i < formula.length && formula[i] == '"') {
+                val next = formula.indexOf('"', i + 1).let { if (it < 0) formula.length - 1 else it }
+                out.append(formula, i, next + 1); i = next + 1
+            }
+        }
+        return out.toString()
+    }
+
+    /** Moves relative references by ([dr], [dc]), as when copying a formula. */
+    fun shift(formula: String, dr: Int, dc: Int): String = map(formula) { _, a, b ->
+        for (e in listOfNotNull(a, b)) { if (!e.absR) e.r += dr; if (!e.absC) e.c += dc }
+        true
+    }
+
+    /**
+     * Fixes references after [count] rows (or columns, when [rows] is false) were inserted at [at] in
+     * sheet [target] (negative [count] deletes). [here] is the sheet the formula lives on.
+     */
+    fun adjust(formula: String, here: String, target: String, rows: Boolean, at: Int, count: Int): String = map(formula) { sheet, a, b ->
+        if (!(sheet ?: here).equals(target, ignoreCase = true)) return@map true
+        fun get(e: End) = if (rows) e.r else e.c
+        fun put(e: End, v: Int) { if (rows) e.r = v else e.c = v }
+        if (count > 0) {
+            for (e in listOfNotNull(a, b)) if (get(e) >= at) put(e, get(e) + count)
+            true
+        } else {
+            val gone = at until at - count
+            if (b == null) {
+                if (get(a) in gone) false else { if (get(a) >= at) put(a, get(a) + count); true }
+            } else {
+                val s = get(a); val e = get(b)
+                val ns = if (s in gone) at else if (s >= at) s + count else s
+                val ne = if (e in gone) at - 1 else if (e >= at) e + count else e
+                if (ne < ns) false else { put(a, ns); put(b, ne); true }
+            }
+        }
     }
 }

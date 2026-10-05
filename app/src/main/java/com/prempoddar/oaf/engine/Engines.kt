@@ -5,6 +5,7 @@ import com.prempoddar.oaf.format.FileKind
 import com.prempoddar.oaf.io.DocSource
 import com.prempoddar.oaf.ui.viewers.ArchiveScreen
 import com.prempoddar.oaf.ui.viewers.DocScreen
+import com.prempoddar.oaf.ui.viewers.EpubScreen
 import com.prempoddar.oaf.ui.viewers.HexViewer
 import com.prempoddar.oaf.ui.viewers.ImageViewer
 import com.prempoddar.oaf.ui.viewers.MediaViewer
@@ -32,6 +33,7 @@ object NativeEngine : DocumentEngine {
         FileKind.AUDIO, FileKind.VIDEO -> { s, back, _ -> MediaViewer(s, back) }
         FileKind.TEXT, FileKind.CODE, FileKind.MARKDOWN, FileKind.HTML, FileKind.JSON, FileKind.XML, FileKind.YAML -> { s, back, _ -> TextScreen(s, back) }
         FileKind.ZIP, FileKind.SEVEN_Z, FileKind.TAR, FileKind.GZIP, FileKind.BZIP2, FileKind.XZ, FileKind.RAR -> { s, back, open -> ArchiveScreen(s, back, open) }
+        FileKind.EPUB -> { s, back, _ -> EpubScreen(s, back) }
         FileKind.PDF -> { s, back, _ -> PdfScreen(s, back) }
         FileKind.DOCX, FileKind.DOC, FileKind.ODT, FileKind.RTF -> { s, back, _ -> DocScreen(s, back) }
         FileKind.XLSX, FileKind.XLS, FileKind.ODS, FileKind.CSV, FileKind.TSV -> { s, back, _ -> SheetScreen(s, back) }

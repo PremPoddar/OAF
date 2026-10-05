@@ -3,7 +3,9 @@ package com.prempoddar.oaf.engine
 import androidx.compose.runtime.Composable
 import com.prempoddar.oaf.format.FileKind
 import com.prempoddar.oaf.io.DocSource
+import com.prempoddar.oaf.ui.viewers.ApkScreen
 import com.prempoddar.oaf.ui.viewers.ArchiveScreen
+import com.prempoddar.oaf.ui.viewers.FontScreen
 import com.prempoddar.oaf.ui.viewers.DocScreen
 import com.prempoddar.oaf.ui.viewers.EpubScreen
 import com.prempoddar.oaf.ui.viewers.HexViewer
@@ -35,6 +37,8 @@ object NativeEngine : DocumentEngine {
         FileKind.TEXT, FileKind.CODE, FileKind.MARKDOWN, FileKind.HTML, FileKind.JSON, FileKind.XML, FileKind.YAML -> { s, back, _ -> TextScreen(s, back) }
         FileKind.ZIP, FileKind.SEVEN_Z, FileKind.TAR, FileKind.GZIP, FileKind.BZIP2, FileKind.XZ, FileKind.RAR -> { s, back, open -> ArchiveScreen(s, back, open) }
         FileKind.PPTX, FileKind.PPT, FileKind.ODP -> { s, back, _ -> SlidesScreen(s, back) }
+        FileKind.APK -> { s, back, _ -> ApkScreen(s, back) }
+        FileKind.FONT -> { s, back, _ -> FontScreen(s, back) }
         FileKind.EPUB -> { s, back, _ -> EpubScreen(s, back) }
         FileKind.PDF -> { s, back, _ -> PdfScreen(s, back) }
         FileKind.DOCX, FileKind.DOC, FileKind.ODT, FileKind.RTF -> { s, back, _ -> DocScreen(s, back) }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="oaf_window_background">#FBF8F3</color>
+    <color name="oaf_launcher_background">#2F5D8C</color>
+</resources>

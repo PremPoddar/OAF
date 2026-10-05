@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Sharing any file the user browses to, plus exports in the cache. -->
+    <root-path name="root" path="." />
+    <cache-path name="cache" path="." />
+    <external-files-path name="files" path="." />
+</paths>

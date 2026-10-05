@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.export.PrintHtml
+import com.prempoddar.oaf.export.Printing
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -322,6 +324,7 @@ private fun SheetBody(source: DocSource, l: SheetLoaded.Ready, onBack: () -> Uni
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Save as Excel workbook…") }, onClick = { menu = false; saveAsXlsx.launch("$baseName.xlsx") })
                     DropdownMenuItem(text = { Text("Export this sheet as CSV…") }, onClick = { menu = false; exportCsv.launch("$baseName - ${editor.sheet.name}.csv") })
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = { menu = false; Printing.printHtml(context, source.name, PrintHtml.sheet(source.name, editor.sheet)) })
                     DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
                     DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
                 }

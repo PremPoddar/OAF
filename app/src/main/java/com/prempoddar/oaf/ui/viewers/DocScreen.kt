@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.export.PrintHtml
+import com.prempoddar.oaf.export.Printing
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -387,6 +389,7 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
                     DropdownMenuItem(text = { Text("Smaller text") }, onClick = { menu = false; scale = (scale - 0.12f).coerceAtLeast(0.6f) })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text(if (loaded.native) "Save a copy…" else "Save as Word document…") }, onClick = { menu = false; saveAs.launch("$baseName.docx") })
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = { menu = false; Printing.printHtml(context, source.name, PrintHtml.document(source.name, editor.body, doc.styles, doc.numbering) { doc.bytes(it) }) })
                     DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
                     DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
                 }

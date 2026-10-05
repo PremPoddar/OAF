@@ -40,6 +40,16 @@ import com.prempoddar.oaf.io.DocSource
 import com.prempoddar.oaf.ui.LocalPaper
 import com.prempoddar.oaf.ui.ViewerScaffold
 import com.prempoddar.oaf.ui.rememberChrome
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.rememberCoroutineScope
+import com.prempoddar.oaf.export.PrintHtml
+import com.prempoddar.oaf.export.Printing
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -89,6 +99,29 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
     }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var menu by remember { mutableStateOf(false) }
+    var pendingMime by remember { mutableStateOf("image/png") }
+    val scope = rememberCoroutineScope()
+    // Converts the picture as shown (turned if it was rotated) to another format.
+    val convert = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/*")) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        val mime = pendingMime
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val base = (loaded as? Loaded.Still)?.bitmap ?: ImageDecoder.decodeBitmap(ImageDecoder.createSource(source.local(context))) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
+                    val turned = if (rotation == 0f) base else Bitmap.createBitmap(base, 0, 0, base.width, base.height, android.graphics.Matrix().apply { postRotate(rotation) }, true)
+                    val format = when (mime) { "image/jpeg" -> Bitmap.CompressFormat.JPEG; "image/webp" -> Bitmap.CompressFormat.WEBP_LOSSY; else -> Bitmap.CompressFormat.PNG }
+                    // JPEG has no transparency: transparent areas become white rather than black.
+                    val out = if (format == Bitmap.CompressFormat.JPEG && turned.hasAlpha()) Bitmap.createBitmap(turned.width, turned.height, Bitmap.Config.ARGB_8888).also { b ->
+                        android.graphics.Canvas(b).apply { drawColor(android.graphics.Color.WHITE); drawBitmap(turned, 0f, 0f, null) }
+                    } else turned
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use { out.compress(format, 92, it) }
+                }.isSuccess
+            }
+            Toast.makeText(context, if (ok) "Saved" else "Couldn't convert this picture", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     ViewerScaffold(
         title = source.name, subtitle = (loaded as? Loaded.Still)?.bitmap?.let { "${it.width} × ${it.height}" },
@@ -96,7 +129,22 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         actions = {
             IconButton(onClick = { rotation = (rotation + 90f) % 360f }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Rotate") }
             IconButton(onClick = { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
-            IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.AutoMirrored.Rounded.OpenInNew, "Open with") }
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                    listOf("PNG" to "image/png", "JPEG" to "image/jpeg", "WebP" to "image/webp").forEach { (label, mime) ->
+                        DropdownMenuItem(text = { Text("Save as $label…") }, onClick = { menu = false; pendingMime = mime; convert.launch(source.name.substringBeforeLast('.') + "." + label.lowercase().replace("jpeg", "jpg")) })
+                    }
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = {
+                        menu = false
+                        scope.launch {
+                            val bytes = withContext(Dispatchers.IO) { runCatching { source.open(context).use { it.readBytes() } }.getOrNull() }
+                            if (bytes != null) Printing.printHtml(context, source.name, PrintHtml.image(source.name, bytes, source.mime ?: "image/*"))
+                        }
+                    })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                }
+            }
         },
     ) {
         Box(

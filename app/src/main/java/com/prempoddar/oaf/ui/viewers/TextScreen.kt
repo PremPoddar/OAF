@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.export.PrintHtml
+import com.prempoddar.oaf.export.Printing
 import android.annotation.SuppressLint
 import android.webkit.WebView
 import android.widget.Toast
@@ -222,6 +224,7 @@ fun TextScreen(source: DocSource, onBack: () -> Unit) {
                     DropdownMenuItem(text = { Text("Larger text") }, onClick = { menu = false; fontScale = (fontScale + 0.15f).coerceAtMost(2.5f) })
                     DropdownMenuItem(text = { Text("Smaller text") }, onClick = { menu = false; fontScale = (fontScale - 0.15f).coerceAtLeast(0.6f) })
                     if (editing) DropdownMenuItem(text = { Text("Save a copy…") }, onClick = { menu = false; saveCopy.launch(source.name) })
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = { menu = false; (loaded as? TextLoaded.Small)?.let { l -> Printing.printHtml(context, source.name, PrintHtml.text(source.name, if (editing) value.text else l.text, markdown = source.kind == FileKind.MARKDOWN)) } })
                     DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
                     DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
                 }

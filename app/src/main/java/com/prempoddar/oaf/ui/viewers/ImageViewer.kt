@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.RotateRight
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -62,6 +63,11 @@ private sealed interface Loaded {
 /** Photos and pictures, including HEIC/AVIF, animated GIF/WebP and SVG. Pinch to zoom, drag to pan. */
 @Composable
 fun ImageViewer(source: DocSource, onBack: () -> Unit) {
+    var editing by remember { mutableStateOf(false) }
+    if (editing && source.kind != FileKind.SVG) {
+        com.prempoddar.oaf.ui.edit.ImageEditor(source, onClose = { editing = false })
+        return
+    }
     val context = LocalContext.current
     val paper = LocalPaper.current
     val chrome = rememberChrome()
@@ -127,6 +133,7 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         title = source.name, subtitle = (loaded as? Loaded.Still)?.bitmap?.let { "${it.width} × ${it.height}" },
         chrome = chrome, onBack = onBack,
         actions = {
+            if (source.kind != FileKind.SVG) IconButton(onClick = { editing = true }) { Icon(Icons.Rounded.Edit, "Edit") }
             IconButton(onClick = { rotation = (rotation + 90f) % 360f }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Rotate") }
             IconButton(onClick = { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
             Box {

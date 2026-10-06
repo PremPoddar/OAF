@@ -65,6 +65,18 @@ class ScreensTest {
     @Test fun appsDark() = shoot("apps-dark", dark) { AppsScreen {} }
     @Test fun settingsDark() = shoot("settings-dark", dark) { SettingsScreen({}, {}, {}, {}, {}) }
 
+    private fun samplePicture(): File {
+        val b = Bitmap.createBitmap(1200, 800, Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(b).apply {
+            drawColor(android.graphics.Color.rgb(70, 120, 190))
+            drawCircle(800f, 300f, 160f, android.graphics.Paint().apply { color = android.graphics.Color.rgb(250, 210, 90) })
+            drawRect(0f, 560f, 1200f, 800f, android.graphics.Paint().apply { color = android.graphics.Color.rgb(60, 140, 80) })
+        }
+        return File(ApplicationProvider.getApplicationContext<Application>().cacheDir, "sample.png").apply { outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+    }
+
+    @Test fun imageEditorDark() = samplePicture().let { f -> shoot("image-editor-dark", dark) { com.prempoddar.oaf.ui.edit.ImageEditor(com.prempoddar.oaf.io.DocSource.fromFile(f).let { s -> s }, {}) } }
+
     @Config(qualifiers = "w891dp-h411dp-land-xxhdpi")
     @Test fun homeLandscape() = shoot("home-land", light) { FilesHome({}, {}) }
 }

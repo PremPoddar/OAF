@@ -19,6 +19,8 @@ object AppGraph {
     /** Deleted files wait here (on the same storage, so deleting is instant) until restored or emptied. */
     val bin by lazy { Bin(File(app.getExternalFilesDir(null) ?: app.filesDir, "bin")) }
 
+    val clipboard by lazy { com.prempoddar.oaf.ui.browser.Clipboard() }
+
     /** Files handed between screens: navigation arguments can only carry a key. */
     private val open = ConcurrentHashMap<String, DocSource>()
     fun put(source: DocSource): String = source.uri.toString().also { open[it] = source }

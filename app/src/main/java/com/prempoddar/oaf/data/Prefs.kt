@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.data
 
+import com.prempoddar.oaf.ui.design.Appearance
+import androidx.datastore.preferences.core.intPreferencesKey
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -14,7 +16,6 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class SortBy { NAME, DATE, SIZE, TYPE }
 
 @Serializable
@@ -28,10 +29,13 @@ data class Recent(
 )
 
 data class OafSettings(
-    val theme: ThemeMode = ThemeMode.SYSTEM,
+    val appearance: Appearance = Appearance(),
     val sort: SortBy = SortBy.NAME,
     val showHidden: Boolean = false,
     val grid: Boolean = false,
+    val foldersFirst: Boolean = true,
+    /** Ask before moving to the bin. */
+    val confirmDelete: Boolean = true,
     val recents: List<Recent> = emptyList(),
     val favourites: List<String> = emptyList(),
 )
@@ -45,6 +49,11 @@ class Prefs(private val context: Context) {
 
     private object K {
         val theme = stringPreferencesKey("theme")
+        val dynamic = booleanPreferencesKey("dynamic")
+        val accent = intPreferencesKey("accent")
+        val black = booleanPreferencesKey("pure_black")
+        val foldersFirst = booleanPreferencesKey("folders_first")
+        val confirmDelete = booleanPreferencesKey("confirm_delete")
         val sort = stringPreferencesKey("sort")
         val hidden = booleanPreferencesKey("hidden")
         val grid = booleanPreferencesKey("grid")
@@ -58,7 +67,12 @@ class Prefs(private val context: Context) {
     suspend fun update(f: (OafSettings) -> OafSettings) {
         context.dataStore.edit { p ->
             val n = f(p.toSettings())
-            p[K.theme] = n.theme.name
+            p[K.theme] = n.appearance.mode.name
+            p[K.dynamic] = n.appearance.dynamic
+            p[K.black] = n.appearance.pureBlack
+            n.appearance.accent?.let { p[K.accent] = it } ?: p.remove(K.accent)
+            p[K.foldersFirst] = n.foldersFirst
+            p[K.confirmDelete] = n.confirmDelete
             p[K.sort] = n.sort.name
             p[K.hidden] = n.showHidden
             p[K.grid] = n.grid
@@ -81,7 +95,14 @@ class Prefs(private val context: Context) {
     private fun Preferences.toSettings(): OafSettings {
         val d = OafSettings()
         return OafSettings(
-            theme = this[K.theme]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: d.theme,
+            appearance = Appearance(
+                mode = this[K.theme]?.let { runCatching { Appearance.Mode.valueOf(it) }.getOrNull() } ?: Appearance.Mode.SYSTEM,
+                dynamic = this[K.dynamic] ?: false,
+                accent = this[K.accent],
+                pureBlack = this[K.black] ?: false,
+            ),
+            foldersFirst = this[K.foldersFirst] ?: d.foldersFirst,
+            confirmDelete = this[K.confirmDelete] ?: d.confirmDelete,
             sort = this[K.sort]?.let { runCatching { SortBy.valueOf(it) }.getOrNull() } ?: d.sort,
             showHidden = this[K.hidden] ?: d.showHidden,
             grid = this[K.grid] ?: d.grid,

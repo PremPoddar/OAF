@@ -12,7 +12,7 @@ data class Root(val label: String, val dir: File)
 
 object Storage {
     fun hasAllFilesAccess(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager() else true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) runCatching { Environment.isExternalStorageManager() }.getOrDefault(false) else true
 
     fun roots(context: Context): List<Root> {
         val primary = Environment.getExternalStorageDirectory()

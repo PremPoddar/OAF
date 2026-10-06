@@ -4,12 +4,10 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,9 +19,25 @@ import com.prempoddar.oaf.data.OafSettings
 import com.prempoddar.oaf.io.DocSource
 import com.prempoddar.oaf.ui.OafTheme
 import com.prempoddar.oaf.ui.browser.BinScreen
-import com.prempoddar.oaf.ui.browser.BrowserScreen
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.prempoddar.oaf.ui.OAF_BRAND
+import com.prempoddar.oaf.ui.browser.AppsScreen
+import com.prempoddar.oaf.ui.browser.Category
+import com.prempoddar.oaf.ui.browser.CategoryScreen
+import com.prempoddar.oaf.ui.browser.FilesHome
+import com.prempoddar.oaf.ui.browser.FolderScreen
+import com.prempoddar.oaf.ui.browser.HomeTarget
+import com.prempoddar.oaf.ui.browser.SettingsScreen
+import com.prempoddar.oaf.ui.design.AboutScreen
+import com.prempoddar.oaf.ui.design.AppearanceScreen
+import com.prempoddar.oaf.ui.design.Credit
+import com.prempoddar.oaf.ui.design.LayeredIcon
+import kotlinx.coroutines.launch
 import com.prempoddar.oaf.ui.browser.StorageScreen
-import com.prempoddar.oaf.ui.isDark
 import com.prempoddar.oaf.ui.viewers.ViewerHost
 import java.net.URLEncoder
 
@@ -39,21 +53,58 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings: OafSettings? by AppGraph.prefs.settings.collectAsStateWithLifecycle(null)
             val s = settings ?: return@setContent
-            val dark = isDark(s.theme)
-            DisposableEffect(dark) {
-                val style = if (dark) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
-                else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
-                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
-                onDispose { }
-            }
-            OafTheme(s.theme) {
+            OafTheme(s.appearance) {
                 val nav = rememberNavController()
                 fun open(source: DocSource) = nav.navigate("view/" + URLEncoder.encode(AppGraph.put(source), "UTF-8"))
                 LaunchedEffect(incoming.value) { incoming.value?.let { open(it); incoming.value = null } }
-                NavHost(nav, "browser", enterTransition = { fadeIn() }, exitTransition = { fadeOut() }) {
-                    composable("browser") { BrowserScreen(onOpen = ::open, onBin = { nav.navigate("bin") }, onStorage = { nav.navigate("storage") }) }
-                    composable("bin") { BinScreen(onBack = { nav.popBackStack() }) }
-                    composable("storage") { StorageScreen(onBack = { nav.popBackStack() }) }
+                fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+                fun go(t: HomeTarget) = when (t) {
+                    is HomeTarget.Folder -> nav.navigate("folder/${enc(t.dir.path)}?search=${t.search}")
+                    is HomeTarget.Of -> nav.navigate("category/${t.category.name}")
+                    HomeTarget.Apps -> nav.navigate("apps")
+                    HomeTarget.Bin -> nav.navigate("bin")
+                    HomeTarget.Storage -> nav.navigate("storage")
+                    HomeTarget.Settings -> nav.navigate("settings")
+                }
+                val back: () -> Unit = { nav.popBackStack() }
+                NavHost(
+                    nav, "browser",
+                    enterTransition = { slideInHorizontally { it / 6 } + fadeIn() }, exitTransition = { fadeOut() },
+                    popEnterTransition = { fadeIn() }, popExitTransition = { slideOutHorizontally { it / 6 } + fadeOut() },
+                ) {
+                    composable("browser") { FilesHome(onOpen = ::open, onGo = ::go) }
+                    composable("folder/{path}?search={search}", arguments = listOf(navArgument("search") { type = NavType.BoolType; defaultValue = false })) { e ->
+                        val path = java.net.URLDecoder.decode(e.arguments!!.getString("path")!!, "UTF-8")
+                        FolderScreen(java.io.File(path), e.arguments!!.getBoolean("search"), onOpen = ::open, onBack = back)
+                    }
+                    composable("category/{c}") { e -> CategoryScreen(Category.valueOf(e.arguments!!.getString("c")!!), onOpen = ::open, onBack = back) }
+                    composable("apps") { AppsScreen(onBack = back) }
+                    composable("bin") { BinScreen(onBack = back) }
+                    composable("storage") { StorageScreen(onBack = back) }
+                    composable("settings") {
+                        SettingsScreen(
+                            onBack = back, onAppearance = { nav.navigate("appearance") }, onAbout = { nav.navigate("about") },
+                            onBin = { nav.navigate("bin") }, onStorage = { nav.navigate("storage") },
+                        )
+                    }
+                    composable("appearance") {
+                        val scope = rememberCoroutineScope()
+                        AppearanceScreen(s.appearance, OAF_BRAND, onChange = { a -> scope.launch { AppGraph.prefs.update { it.copy(appearance = a) } } }, onBack = back)
+                    }
+                    composable("about") {
+                        AboutScreen(
+                            "OAF", "Open all files: documents, sheets, slides, books, media and archives, all on your phone.",
+                            icon = { LayeredIcon(R.drawable.ic_launcher_background, R.drawable.ic_launcher_foreground) },
+                            credits = listOf(
+                                Credit("PdfBox-Android", "Apache 2.0"), Credit("Apache POI", "Apache 2.0"),
+                                Credit("Apache Commons Compress", "Apache 2.0"), Credit("XZ for Java", "Public domain"),
+                                Credit("junrar", "UnRAR licence"), Credit("commonmark-java", "BSD 2-Clause"),
+                                Credit("AndroidSVG", "Apache 2.0"), Credit("AndroidX Media3", "Apache 2.0"),
+                                Credit("Literata, Inter, JetBrains Mono", "SIL Open Font License"),
+                            ),
+                            onBack = back,
+                        )
+                    }
                     composable("view/{key}") { e ->
                         val key = java.net.URLDecoder.decode(e.arguments!!.getString("key")!!, "UTF-8")
                         val source = AppGraph.get(key) ?: DocSource.fromUri(this@MainActivity, Uri.parse(key))

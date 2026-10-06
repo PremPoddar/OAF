@@ -103,6 +103,64 @@ object FileOps {
     }
 
     fun size(f: File): Long = if (f.isFile) f.length() else f.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+    private fun checkName(name: String): String {
+        val clean = name.trim()
+        require(clean.isNotEmpty() && !clean.contains('/') && clean != "." && clean != "..") { "That name can't be used" }
+        return clean
+    }
+
+    fun newFolder(dir: File, name: String): File {
+        val f = File(dir, checkName(name))
+        if (f.exists()) throw Conflict("“${f.name}” already exists here")
+        if (!f.mkdirs()) throw IOException("Couldn't create the folder")
+        return f
+    }
+
+    fun newFile(dir: File, name: String): File {
+        val f = File(dir, checkName(name))
+        if (f.exists()) throw Conflict("“${f.name}” already exists here")
+        if (!f.createNewFile()) throw IOException("Couldn't create the file")
+        return f
+    }
+
+    /**
+     * New names for [files] from [pattern]: `#` is the counter (### pads to three digits), `*` is
+     * the original name. Extensions are kept.
+     */
+    fun batchNames(files: List<File>, pattern: String, start: Int): List<String> = files.mapIndexed { i, f ->
+        val ext = if (f.isFile && f.name.lastIndexOf('.') > 0) f.name.substring(f.name.lastIndexOf('.')) else ""
+        val stem = if (ext.isEmpty()) f.name else f.name.dropLast(ext.length)
+        val withCounter = Regex("#+").replace(pattern) { m -> (start + i).toString().padStart(m.value.length, '0') }
+        withCounter.replace("*", stem).trim() + ext
+    }
+
+    fun batchRename(files: List<File>, pattern: String, start: Int): List<File> {
+        val names = batchNames(files, pattern, start)
+        names.forEach { checkName(it) }
+        if (names.toSet().size != names.size) throw Conflict("Add # to the pattern so every name is different")
+        // Two passes so names can be swapped or shifted among the same files.
+        val temp = files.map { f -> File(f.parentFile, ".oaf-rename-" + System.nanoTime() + "-" + f.name).also { if (!f.renameTo(it)) throw IOException("Couldn't rename “${f.name}”") } }
+        return temp.mapIndexed { i, t ->
+            val target = File(t.parentFile, names[i]).let { if (it.exists()) freeName(t.parentFile!!, names[i]) else it }
+            if (!t.renameTo(target)) throw IOException("Couldn't rename to “${names[i]}”")
+            target
+        }
+    }
+
+    /** Hex digest of a file, for MD5, SHA-1 or SHA-256. */
+    fun hash(f: File, algorithm: String): String {
+        val md = java.security.MessageDigest.getInstance(algorithm)
+        f.inputStream().use { input ->
+            val buf = ByteArray(256 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                md.update(buf, 0, n)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
+    }
 }
 
 /**

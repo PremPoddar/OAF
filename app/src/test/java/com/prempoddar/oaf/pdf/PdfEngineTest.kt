@@ -243,4 +243,28 @@ class PdfEngineTest {
         assertThrows(Exception::class.java) { PDDocument.load(out).close() }
         PDDocument.load(out, "secret").use { assertThat(PdfAnnots.list(it, 0).map { a -> a.contents }).contains("hi") }
     }
+
+    @Test fun tapsPickTheTextTouchedNotWhatIsNearOrBehind() {
+        val doc = PDDocument()
+        val page = PDPage(PDRectangle.A4)
+        doc.addPage(page)
+        PDPageContentStream(doc, page).use { cs ->
+            cs.setNonStrokingColor(0.9f, 0.9f, 0.9f)
+            cs.addRect(60f, 690f, 200f, 40f); cs.fill() // a table cell behind the text
+            cs.setNonStrokingColor(0f, 0f, 0f)
+            text(cs, 72f, 700f, "Cell text", 14f)
+            cs.setStrokingColor(0f, 0f, 0f)
+            cs.moveTo(60f, 686f); cs.lineTo(400f, 686f); cs.stroke() // a rule just under it
+        }
+        val els = PdfContent.elements(doc, 0)
+        val text = els.single { it.kind == PdfElement.Kind.TEXT }
+        val g = PageGeom(doc.getPage(0))
+        val (x, y) = g.toDisplay(80f, 704f) // on the "C"
+        assertThat(PdfContent.at(els, x, y)).isSameInstanceAs(text)
+        // Tapping again at the same spot reaches what's underneath.
+        assertThat(PdfContent.candidates(els, x, y).map { it.kind }).containsExactly(PdfElement.Kind.TEXT, PdfElement.Kind.SHAPE).inOrder()
+        val (bx, by) = g.toDisplay(240f, 720f) // the cell, away from the text
+        assertThat(PdfContent.at(els, bx, by)!!.kind).isEqualTo(PdfElement.Kind.SHAPE)
+    }
+
 }

@@ -264,6 +264,7 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
     var signature by remember { mutableStateOf<Bitmap?>(null) }
     var picture by remember { mutableStateOf<Bitmap?>(null) }
     var pagesSelected by remember { mutableStateOf(setOf<Int>()) }
+    var lastTap by remember { mutableStateOf<Triple<Int, Float, Float>?>(null) }
     val signatureFile = remember { File(context.filesDir, "signature.png") }
     val savedSignature = remember(padOpen) { if (signatureFile.exists()) BitmapFactory.decodeFile(signatureFile.path) else null }
 
@@ -359,7 +360,16 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
                 PdfMode.EDIT -> when (state.tool) {
                     Tool.ADD_TEXT -> pending = Pending.TextAt(page, x, y)
                     Tool.ADD_IMAGE -> picture?.let { b -> placeImage(b, page, boxAround(page, x, y, b, 0.4f), "add the picture"); picture = null; state.tool = Tool.NONE }
-                    else -> scope.launch { state.picked = PdfContent.at(state.elements(page), x, y)?.let { page to it } }
+                    else -> scope.launch {
+                        val options = PdfContent.candidates(state.elements(page), x, y)
+                        val last = lastTap
+                        val current = state.picked?.takeIf { it.first == page }?.second
+                        // Tapping the same spot again moves to the next thing underneath.
+                        val again = last != null && last.first == page && kotlin.math.abs(last.second - x) < 0.01f && kotlin.math.abs(last.third - y) < 0.01f
+                        val next = if (again && current != null && current in options) options[(options.indexOf(current) + 1) % options.size] else options.firstOrNull()
+                        lastTap = Triple(page, x, y)
+                        state.picked = next?.let { page to it }
+                    }
                 }
                 PdfMode.FILL -> if (state.tool == Tool.PLACE_SIGNATURE) signature?.let { b ->
                     placeImage(b, page, boxAround(page, x, y, b, 0.28f), "place the signature"); state.tool = Tool.NONE

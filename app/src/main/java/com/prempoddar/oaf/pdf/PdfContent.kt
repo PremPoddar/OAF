@@ -34,6 +34,8 @@ class PdfElement internal constructor(
     val box: Box,
     val text: String = "",
     internal val info: TextInfo? = null,
+    /** The pieces a tap can land on: each text operator's box for a line, otherwise just [box]. */
+    val parts: List<Box> = listOf(box),
 ) {
     enum class Kind { TEXT, IMAGE, SHAPE, OBJECT }
 
@@ -180,7 +182,7 @@ object PdfContent {
                 }
                 text.append(r.text)
             }
-            out += PdfElement(PdfElement.Kind.TEXT, l.map { it.index }, l.map { it.box!! }.reduce(Box::union), text.toString(), l.first().info)
+            out += PdfElement(PdfElement.Kind.TEXT, l.map { it.index }, l.map { it.box!! }.reduce(Box::union), text.toString(), l.first().info, l.map { it.box!! })
         }
         for (rec in scanner.records.values.sortedBy { it.index }) {
             val box = rec.box ?: continue
@@ -205,9 +207,19 @@ object PdfContent {
         return out
     }
 
-    /** The topmost element under a point; small things win over the large ones behind them. */
-    fun at(elements: List<PdfElement>, x: Float, y: Float): PdfElement? =
-        elements.filter { it.box.contains(x, y, 0.006f) }.minByOrNull { (it.box.width * it.box.height).coerceAtLeast(1e-6f) * if (it.kind == PdfElement.Kind.TEXT) 0.5f else 1f }
+    /**
+     * Everything under a point, best first: text whose words were touched comes before anything
+     * else, then the smallest of the rest (so a cell wins over the page-sized box behind it).
+     * Tapping the same spot again steps through this list.
+     */
+    fun candidates(elements: List<PdfElement>, x: Float, y: Float): List<PdfElement> {
+        val slop = 0.004f
+        fun touched(e: PdfElement) = e.parts.filter { it.contains(x, y, slop) }
+        return elements.filter { touched(it).isNotEmpty() }
+            .sortedWith(compareBy<PdfElement>({ if (it.kind == PdfElement.Kind.TEXT) 0 else 1 }, { e -> touched(e).minOf { it.width * it.height } }))
+    }
+
+    fun at(elements: List<PdfElement>, x: Float, y: Float): PdfElement? = candidates(elements, x, y).firstOrNull()
 
     // ---------------------------------------------------------------- rewriting
 

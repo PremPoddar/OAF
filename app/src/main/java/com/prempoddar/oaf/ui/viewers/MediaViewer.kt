@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -91,7 +92,7 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
             }
             AndroidView(
                 factory = { PlayerView(it).apply { this.player = player; controllerShowTimeoutMs = if (audio) 0 else 3_000; controllerHideOnTouch = !audio } },
-                modifier = if (audio) Modifier.fillMaxWidth().padding(top = 24.dp).size(width = 0.dp, height = 160.dp).fillMaxWidth() else Modifier.fillMaxSize(),
+                modifier = if (audio) Modifier.fillMaxWidth().padding(top = 24.dp).height(160.dp) else Modifier.fillMaxSize(),
             )
         }
     }

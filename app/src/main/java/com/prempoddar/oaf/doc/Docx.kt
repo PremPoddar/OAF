@@ -154,7 +154,7 @@ class Numbering(private val nums: Map<String, Map<Int, Level>>) {
     /** The label in front of each list paragraph: "•", "3.", "b)", "1.2." and so on. */
     fun labels(paras: List<Para>, styles: DocStyles): Map<Long, String> {
         val counters = HashMap<String, IntArray>()
-        val out = HashMap<Long, String>()
+        val out = LinkedHashMap<Long, String>()
         for (p in paras) {
             val (numId, lvl) = styles.numbering(p) ?: continue
             val l = level(numId, lvl) ?: continue

@@ -28,6 +28,14 @@ android {
             // Debug-signed until a release keystore is set up, so release builds still install.
             signingConfig = signingConfigs.getByName("debug")
         }
+        // Optimised like release but without shrinking, for trying builds on a phone: as fast
+        // as release, and nothing can be stripped by mistake.
+        create("fast") {
+            initWith(getByName("release"))
+            isMinifyEnabled = false
+            isShrinkResources = false
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
@@ -78,6 +86,7 @@ dependencies {
     implementation(libs.media3.session)
     implementation(libs.media3.transformer)
     implementation(libs.media3.effect)
+    implementation(libs.androidx.palette)
     implementation(libs.pdfbox)
     implementation(libs.poi)
     implementation(libs.poi.scratchpad)

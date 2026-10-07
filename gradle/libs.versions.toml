@@ -1,4 +1,5 @@
 [versions]
+palette = "1.0.0"
 materialColor = "2.0.0"
 agp = "8.9.2"
 kotlin = "2.1.0"
@@ -25,6 +26,7 @@ robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
 
 [libraries]
+androidx-palette = { group = "androidx.palette", name = "palette", version.ref = "palette" }
 material-color-utilities = { group = "com.materialkolor", name = "material-color-utilities-android", version.ref = "materialColor" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }

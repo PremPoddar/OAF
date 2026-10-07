@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers.pdf
 
+import com.prempoddar.oaf.pdf.PdfElement
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -130,6 +131,11 @@ internal fun PdfPageView(state: PdfState, index: Int, widthPx: Int, paper: Paper
     val selectionBoxes by produceState(emptyList<PBox>(), selection, version) {
         value = selection?.let { s -> state.text(index).lineBoxes(s.range) } ?: emptyList()
     }
+    // In edit mode every editable piece is outlined, so it's clear what a tap will pick.
+    val outlining = state.mode == PdfMode.EDIT && state.tool == Tool.NONE
+    val outlines by produceState(emptyList<PdfElement>(), index, version, outlining) {
+        value = if (outlining) state.elements(index) else emptyList()
+    }
     val stroke = remember { mutableStateListOf<Offset>() }
     var drawing by remember { mutableStateOf(false) }
     val current by rememberUpdatedState(actions)
@@ -168,6 +174,20 @@ internal fun PdfPageView(state: PdfState, index: Int, widthPx: Int, paper: Paper
                 hit.boxes.forEach { b -> val (o, s) = rect(b); drawRect(c, o, s) }
             }
             selectionBoxes.forEach { b -> val (o, s) = rect(b); drawRect(accent.copy(alpha = 0.28f), o, s) }
+            val picked = state.picked?.takeIf { it.first == index }?.second
+            outlines.forEach { el ->
+                if (el === picked) return@forEach
+                val colour = when (el.kind) {
+                    PdfElement.Kind.TEXT -> accent
+                    PdfElement.Kind.IMAGE -> Color(0xFF2E9E6B)
+                    else -> Color(0xFF8A84A0)
+                }
+                val (o, s) = rect(el.box)
+                // Whole-page backgrounds get only a faint edge so they don't hide everything else.
+                val big = el.box.width * el.box.height > 0.5f
+                if (!big) drawRect(colour.copy(alpha = 0.07f), o, s)
+                drawRect(colour.copy(alpha = if (big) 0.25f else 0.7f), o, s, style = Stroke(1.dp.toPx()))
+            }
             state.picked?.takeIf { it.first == index }?.second?.let { el ->
                 val (o, s) = rect(el.box)
                 drawRect(accent.copy(alpha = 0.1f), o, s)

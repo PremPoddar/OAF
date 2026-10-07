@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -128,9 +129,11 @@ fun extLabel(k: FileKind) = when (k) {
     FileKind.APK -> "APK"; FileKind.FONT -> "Aa"; FileKind.UNKNOWN -> "•••"
 }
 
+private val dateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
+
 fun describe(e: Entry, extra: String? = null): String = listOfNotNull(
     if (e.isDir) "${e.children} item${if (e.children == 1) "" else "s"}" else humanSize(e.size),
-    DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(e.modified)),
+    dateFormat.format(Date(e.modified)),
     extra,
 ).joinToString(" · ")
 
@@ -154,7 +157,7 @@ fun FileRow(e: Entry, selected: Boolean, selecting: Boolean, onClick: () -> Unit
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(e.file.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(describe(e, extra), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(remember(e, extra) { describe(e, extra) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (!selecting) trailing()
     }

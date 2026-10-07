@@ -77,6 +77,27 @@ class ScreensTest {
 
     @Test fun imageEditorDark() = samplePicture().let { f -> shoot("image-editor-dark", dark) { com.prempoddar.oaf.ui.edit.ImageEditor(com.prempoddar.oaf.io.DocSource.fromFile(f).let { s -> s }, {}) } }
 
+    private fun fakePlayer() = androidx.media3.exoplayer.ExoPlayer.Builder(ApplicationProvider.getApplicationContext()).build().apply {
+        setMediaItem(androidx.media3.common.MediaItem.Builder().setUri("file:///nothing.mp3")
+            .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("Midnight City").setArtist("M83").build()).build())
+    }
+
+    @Test fun audioPlayerDark() = shoot("audio-dark", dark) {
+        val p = androidx.compose.runtime.remember { fakePlayer() }
+        com.prempoddar.oaf.ui.viewers.AudioPlayer(com.prempoddar.oaf.media.rememberPlayerState(p), com.prempoddar.oaf.io.DocSource.fromFile(File("song.mp3")), {}, {})
+    }
+
+    @Test fun audioPlayerLight() = shoot("audio-light", light) {
+        val p = androidx.compose.runtime.remember { fakePlayer() }
+        com.prempoddar.oaf.ui.viewers.AudioPlayer(com.prempoddar.oaf.media.rememberPlayerState(p), com.prempoddar.oaf.io.DocSource.fromFile(File("song.mp3")), {}, {})
+    }
+
+    @Config(qualifiers = "w891dp-h411dp-land-xxhdpi")
+    @Test fun videoPlayer() = shoot("video-land", dark) {
+        val p = androidx.compose.runtime.remember { fakePlayer() }
+        com.prempoddar.oaf.ui.viewers.VideoPlayer(com.prempoddar.oaf.media.rememberPlayerState(p), com.prempoddar.oaf.io.DocSource.fromFile(File("clip.mp4")), {}, {})
+    }
+
     @Config(qualifiers = "w891dp-h411dp-land-xxhdpi")
     @Test fun homeLandscape() = shoot("home-land", light) { FilesHome({}, {}) }
 }

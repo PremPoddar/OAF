@@ -44,6 +44,7 @@ class PlayerState(val player: Player) {
     var buffering by mutableStateOf(false); internal set
     var metadata by mutableStateOf(player.mediaMetadata); internal set
     var position by mutableLongStateOf(0L); internal set
+    var buffered by mutableLongStateOf(0L); internal set
     var duration by mutableLongStateOf(0L); internal set
     var index by mutableIntStateOf(player.currentMediaItemIndex); internal set
     var count by mutableIntStateOf(player.mediaItemCount); internal set
@@ -115,6 +116,7 @@ fun rememberPlayerState(player: Player): PlayerState {
     LaunchedEffect(player, state.playing) {
         while (true) {
             state.position = player.currentPosition.coerceAtLeast(0)
+            state.buffered = player.bufferedPosition.coerceAtLeast(0)
             player.duration.takeIf { it != C.TIME_UNSET }?.let { state.duration = it }
             delay(if (state.playing) 250 else 1000)
         }

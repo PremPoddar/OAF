@@ -8,6 +8,8 @@ import android.graphics.Bitmap
 import android.os.Environment
 import androidx.core.graphics.drawable.toBitmap
 import java.io.File
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -28,30 +30,58 @@ data class InstalledApp(
 }
 
 object Apks {
-    fun list(context: Context): List<InstalledApp> {
-        val pm = context.packageManager
-        @Suppress("DEPRECATION")
-        val infos: List<PackageInfo> = pm.getInstalledPackages(0)
-        return infos.mapNotNull { pi ->
-            val ai = pi.applicationInfo ?: return@mapNotNull null
-            val apks = listOf(File(ai.sourceDir)) + ai.splitSourceDirs.orEmpty().map(::File)
-            InstalledApp(
-                pkg = pi.packageName,
-                label = runCatching { ai.loadLabel(pm).toString() }.getOrDefault(pi.packageName),
-                version = pi.versionName ?: "",
-                versionCode = pi.longVersionCode,
-                system = ai.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
-                size = apks.sumOf { it.length() },
-                installed = pi.firstInstallTime,
-                updated = pi.lastUpdateTime,
-                apks = apks,
-            )
-        }.sortedBy { it.label.lowercase() }
+    /** Last full list, so coming back to the Apps screen is instant. */
+    @Volatile var cached: List<InstalledApp>? = null
+        private set
+
+    private val labels = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val icons = object : android.util.LruCache<String, Bitmap>(16 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
-    fun icon(context: Context, pkg: String, px: Int): Bitmap? = runCatching {
-        context.packageManager.getApplicationIcon(pkg).toBitmap(px, px)
-    }.getOrNull()
+    /**
+     * Every installed app. Reading labels is the slow part, so they're read in parallel and
+     * remembered on disk by version: after the first visit only new or updated apps cost anything.
+     */
+    suspend fun list(context: Context): List<InstalledApp> = kotlinx.coroutines.coroutineScope {
+        val pm = context.packageManager
+        val store = File(context.cacheDir, "app-labels.txt")
+        if (labels.isEmpty()) runCatching {
+            store.readLines().forEach { line -> line.split('\t', limit = 2).takeIf { it.size == 2 }?.let { (k, v) -> labels[k] = v } }
+        }
+        @Suppress("DEPRECATION")
+        val infos: List<PackageInfo> = pm.getInstalledPackages(0)
+        val io = kotlinx.coroutines.Dispatchers.IO.limitedParallelism(8)
+        val apps = infos.map { pi ->
+            async(io) {
+                val ai = pi.applicationInfo ?: return@async null
+                val key = pi.packageName + "@" + pi.lastUpdateTime
+                val label = labels[key] ?: runCatching { ai.loadLabel(pm).toString() }.getOrDefault(pi.packageName).also { labels[key] = it }
+                val apks = listOf(File(ai.sourceDir)) + ai.splitSourceDirs.orEmpty().map(::File)
+                InstalledApp(
+                    pkg = pi.packageName,
+                    label = label,
+                    version = pi.versionName ?: "",
+                    versionCode = pi.longVersionCode,
+                    system = ai.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0,
+                    size = apks.sumOf { it.length() },
+                    installed = pi.firstInstallTime,
+                    updated = pi.lastUpdateTime,
+                    apks = apks,
+                )
+            }
+        }.awaitAll().filterNotNull().sortedBy { it.label.lowercase() }
+        runCatching { store.writeText(labels.entries.joinToString("\n") { it.key + "\t" + it.value.replace('\n', ' ') }) }
+        cached = apps
+        apps
+    }
+
+    fun icon(context: Context, pkg: String, px: Int): Bitmap? {
+        icons.get("$pkg:$px")?.let { return it }
+        return runCatching { context.packageManager.getApplicationIcon(pkg).toBitmap(px, px) }.getOrNull()?.also { icons.put("$pkg:$px", it) }
+    }
+
+    fun cachedIcon(pkg: String, px: Int): Bitmap? = icons.get("$pkg:$px")
 
     /** A file name people will recognise: "Signal 7.12.apk". */
     fun fileName(app: InstalledApp): String {

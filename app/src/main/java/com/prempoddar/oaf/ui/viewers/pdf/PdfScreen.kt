@@ -361,7 +361,7 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
                     Tool.ADD_TEXT -> pending = Pending.TextAt(page, x, y)
                     Tool.ADD_IMAGE -> picture?.let { b -> placeImage(b, page, boxAround(page, x, y, b, 0.4f), "add the picture"); picture = null; state.tool = Tool.NONE }
                     else -> scope.launch {
-                        val options = PdfContent.candidates(state.elements(page), x, y)
+                        val options = PdfContent.pick(state.elements(page), x, y)
                         val last = lastTap
                         val current = state.picked?.takeIf { it.first == page }?.second
                         // Tapping the same spot again moves to the next thing underneath.

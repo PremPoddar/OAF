@@ -221,6 +221,22 @@ object PdfContent {
 
     fun at(elements: List<PdfElement>, x: Float, y: Float): PdfElement? = candidates(elements, x, y).firstOrNull()
 
+    /**
+     * What a tap picks when every element is outlined on screen: the boxes under the finger,
+     * smallest first (so a logo on a heading, or a word on a background, wins). If the tap just
+     * misses everything, the nearest box within a short reach.
+     */
+    fun pick(elements: List<PdfElement>, x: Float, y: Float): List<PdfElement> {
+        val inside = elements.filter { it.box.contains(x, y, 0.006f) }.sortedBy { it.box.width * it.box.height }
+        if (inside.isNotEmpty()) return inside
+        fun distance(b: Box): Float {
+            val dx = maxOf(b.l - x, 0f, x - b.r)
+            val dy = maxOf(b.t - y, 0f, y - b.b)
+            return kotlin.math.sqrt(dx * dx + dy * dy)
+        }
+        return elements.map { it to distance(it.box) }.filter { it.second < 0.03f }.sortedBy { it.second }.map { it.first }
+    }
+
     // ---------------------------------------------------------------- rewriting
 
     private fun rewrite(doc: PDDocument, page: PDPage, replace: (index: Int, op: Operator, operands: List<COSBase>) -> List<Any>?) {

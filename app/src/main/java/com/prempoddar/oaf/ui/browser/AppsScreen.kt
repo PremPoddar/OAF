@@ -92,7 +92,8 @@ fun AppsScreen(onBack: () -> Unit) {
     LifecycleResumeEffect(Unit) { reload++; onPauseOrDispose { } }
     BackHandler(selected.isNotEmpty()) { selected.clear() }
 
-    val all by produceState<List<InstalledApp>?>(null, reload) { value = withContext(Dispatchers.IO) { Apks.list(context) } }
+    // Shows the last list at once, then refreshes it quietly.
+    val all by produceState(Apks.cached, reload) { value = withContext(Dispatchers.IO) { Apks.list(context) } }
     val list = all?.filter { it.system == system && (query.isBlank() || it.label.contains(query.trim(), true) || it.pkg.contains(query.trim(), true)) }?.let { l ->
         when (sort) {
             AppSort.NAME -> l
@@ -213,8 +214,9 @@ fun AppsScreen(onBack: () -> Unit) {
 @Composable
 private fun AppIcon(pkg: String, sizeDp: Int) {
     val context = LocalContext.current
-    val icon by produceState<ImageBitmap?>(null, pkg) {
-        value = withContext(Dispatchers.IO) { Apks.icon(context, pkg, sizeDp * 3)?.asImageBitmap() }
+    val px = sizeDp * 3
+    val icon by produceState(Apks.cachedIcon(pkg, px)?.asImageBitmap(), pkg) {
+        if (value == null) value = withContext(Dispatchers.IO) { Apks.icon(context, pkg, px)?.asImageBitmap() }
     }
     Box(Modifier.size(sizeDp.dp), contentAlignment = Alignment.Center) {
         icon?.let { Image(it, null, Modifier.size(sizeDp.dp)) }

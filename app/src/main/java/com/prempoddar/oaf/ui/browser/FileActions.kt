@@ -1,5 +1,8 @@
 package com.prempoddar.oaf.ui.browser
 
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.Lock
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -44,6 +47,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.prempoddar.oaf.AppGraph
 import com.prempoddar.oaf.archive.Archives
+import com.prempoddar.oaf.archive.Compressor
 import com.prempoddar.oaf.files.ClipMode
 import com.prempoddar.oaf.files.FileOps
 import com.prempoddar.oaf.format.FileKind
@@ -84,19 +88,25 @@ private fun isArchive(f: File) = f.isFile && kindOf(f).family == FileKind.Family
 
 fun toast(context: Context): (String) -> Unit = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
 
-fun compress(context: Context, items: List<File>) {
+fun compress(context: Context, items: List<File>, options: Compressor.Options) {
     val dir = items.first().parentFile ?: return
-    AppGraph.clipboard.run("Compressing", toast(context)) {
-        FileOps.zip(items, FileOps.freeName(dir, (if (items.size == 1) items.first().nameWithoutExtension else "Archive") + ".zip"))
-    }
+    AppGraph.clipboard.run("Compressing", toast(context)) { Compressor.compress(items, dir, options) }
 }
 
-fun extract(context: Context, archive: File) {
+/** Extracts beside the archive; a locked archive calls [onLocked] (wrong = the password failed). */
+fun extract(context: Context, archive: File, password: String? = null, onLocked: (Boolean) -> Unit = {}) {
     AppGraph.clipboard.run("Extracting", toast(context)) {
-        val head = archive.inputStream().use { s -> ByteArray(8).also { s.read(it) } }
+        val head = archive.inputStream().use { s -> ByteArray(512).also { s.read(it) } }
         val type = Archives.typeOf(archive.name, head) ?: throw java.io.IOException("This archive type can't be extracted")
         val stem = archive.name.substringBefore(".tar.").substringBeforeLast('.')
-        Archives.extractAll(archive, type, FileOps.freeName(archive.parentFile!!, stem).apply { mkdirs() })
+        try {
+            Archives.list(archive, type, password)
+        } catch (e: Archives.PasswordNeeded) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onLocked(e.wrong) }
+            return@run
+        }
+        val dir = FileOps.freeName(archive.parentFile!!, stem).apply { mkdirs() }
+        try { Archives.extractAll(archive, type, dir, password = password) } catch (e: Exception) { dir.deleteRecursively(); throw e }
     }
 }
 
@@ -126,6 +136,8 @@ fun SelectionBar(
     val settings by AppGraph.prefs.settings.collectAsStateWithLifecycle(null)
     var menu by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
+    var compressing by remember { mutableStateOf<List<File>?>(null) }
+    var locked by remember { mutableStateOf<Pair<File, Boolean>?>(null) }
     val one = selected.singleOrNull()
     fun delete() {
         val items = selected.toList()
@@ -143,8 +155,8 @@ fun SelectionBar(
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     if (one != null) DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename(one) })
                     if (selected.size > 1) DropdownMenuItem(text = { Text("Rename all…") }, onClick = { menu = false; onBatchRename(selected.toList()) })
-                    DropdownMenuItem(text = { Text("Compress to ZIP") }, onClick = { menu = false; compress(context, selected.toList()); onDone() })
-                    if (one != null && isArchive(one)) DropdownMenuItem(text = { Text("Extract here") }, onClick = { menu = false; extract(context, one); onDone() })
+                    DropdownMenuItem(text = { Text("Compress…") }, onClick = { menu = false; compressing = selected.toList() })
+                    if (one != null && isArchive(one)) DropdownMenuItem(text = { Text("Extract here") }, onClick = { menu = false; extract(context, one) { wrong -> locked = one to wrong }; onDone() })
                     if (one != null && one.isFile) DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openWith(context, one) })
                     if (one != null) DropdownMenuItem(text = { Text("Details") }, onClick = { menu = false; onDetails(one) })
                     extra { menu = false }
@@ -153,6 +165,12 @@ fun SelectionBar(
         }
     }
     if (confirm) DeleteDialog(selected.size, onDismiss = { confirm = false }, onConfirm = { confirm = false; delete() })
+    compressing?.let { items ->
+        CompressDialog(items, onDismiss = { compressing = null }) { options -> compressing = null; compress(context, items, options); onDone() }
+    }
+    locked?.let { (file, wrong) ->
+        PasswordDialog(file.name, wrong, onDismiss = { locked = null }) { pw -> locked = null; extract(context, file, pw) { w -> locked = file to w } }
+    }
 }
 
 @Composable
@@ -206,4 +224,87 @@ fun ClipAndJobBar(pasteInto: File?) {
             }
         }
     }
+}
+
+/** Compression with the choices that matter: name, format, how hard to squeeze, and a password. */
+@Composable
+fun CompressDialog(items: List<File>, onDismiss: () -> Unit, onCompress: (Compressor.Options) -> Unit) {
+    var name by remember { mutableStateOf(if (items.size == 1) items.first().nameWithoutExtension else "Archive") }
+    var format by remember { mutableStateOf(Compressor.Format.ZIP) }
+    var level by remember { mutableStateOf(Compressor.Level.NORMAL) }
+    var lock by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    val mismatch = lock && again.isNotEmpty() && again != password
+    val ok = name.isNotBlank() && !name.contains('/') && (!lock || (password.length >= 4 && password == again))
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Compress ${if (items.size == 1) "“${items.first().name}”" else "${items.size} items"}") },
+        text = {
+            androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { com.prempoddar.oaf.ui.design.PillTextField(name, { name = it }, "Name", supporting = "Saved as $name.${format.ext}") }
+                item {
+                    Text("Format", style = MaterialTheme.typography.titleSmall)
+                    com.prempoddar.oaf.ui.design.ChoiceChips(Compressor.Format.entries.map { it to it.label }, format, { format = it; if (!it.passwords) lock = false })
+                }
+                item {
+                    Text("Compression", style = MaterialTheme.typography.titleSmall)
+                    com.prempoddar.oaf.ui.design.ChoiceChips(Compressor.Level.entries.map { it to it.label }, level, { level = it })
+                    Text(
+                        when (level) { Compressor.Level.STORE -> "Fastest; files keep their size."; Compressor.Level.FAST -> "Quick, a little smaller."; Compressor.Level.NORMAL -> "A good balance."; Compressor.Level.MAXIMUM -> "Smallest file; takes longest." },
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Password", style = MaterialTheme.typography.titleSmall)
+                            Text(if (format.passwords) "Locked with AES-256" else "Only ZIP archives can have a password", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        androidx.compose.material3.Switch(lock, { lock = it }, enabled = format.passwords)
+                    }
+                }
+                if (lock) {
+                    item {
+                        val vt = if (show) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        val kb = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            com.prempoddar.oaf.ui.design.PillTextField(password, { password = it }, "Password", clearable = false, keyboardOptions = kb, visualTransformation = vt,
+                                supporting = if (password.isNotEmpty() && password.length < 4) "At least 4 characters" else null,
+                                trailing = { IconButton(onClick = { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } })
+                            com.prempoddar.oaf.ui.design.PillTextField(again, { again = it }, "Type it again", clearable = false, keyboardOptions = kb, visualTransformation = vt,
+                                isError = mismatch, supporting = if (mismatch) "The passwords don't match" else null)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = ok, onClick = { onCompress(Compressor.Options(name.trim(), format, level, password.takeIf { lock })) }) { Text("Compress") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+fun PasswordDialog(name: String, wrong: Boolean, onDismiss: () -> Unit, onUnlock: (String) -> Unit) {
+    var value by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Rounded.Lock, null) },
+        title = { Text("“$name” is locked") },
+        text = {
+            Column {
+                Text(if (wrong) "That password didn't work. Try again." else "Enter its password to extract it.")
+                com.prempoddar.oaf.ui.design.PillTextField(
+                    value, { value = it }, "Password", Modifier.padding(top = 12.dp), isError = wrong, clearable = false,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+                    visualTransformation = if (show) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    trailing = { IconButton(onClick = { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } },
+                )
+            }
+        },
+        confirmButton = { TextButton(enabled = value.isNotEmpty(), onClick = { onUnlock(value) }) { Text("Extract") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

@@ -52,7 +52,11 @@ import java.text.DateFormat
 import java.util.Date
 
 /** A file or folder as the browser shows it; [kind] is null for folders. */
-class Entry(val file: File, val kind: FileKind?, val size: Long, val modified: Long, val children: Int) {
+class Entry(
+    val file: File, val kind: FileKind?, val size: Long, val modified: Long, val children: Int,
+    /** Android's media index entry, when known: its thumbnails are ready-made and quick. */
+    val media: android.net.Uri? = null,
+) {
     val isDir get() = kind == null
 }
 
@@ -71,7 +75,7 @@ private val thumbDispatcher = Dispatchers.IO.limitedParallelism(4)
 
 /** A small preview for pictures, videos, songs with cover art and app packages; null otherwise. */
 @Composable
-fun rememberThumbnail(file: File, kind: FileKind?, px: Int = 256): ImageBitmap? {
+fun rememberThumbnail(file: File, kind: FileKind?, px: Int = 256, media: android.net.Uri? = null): ImageBitmap? {
     val context = LocalContext.current
     val canPreview = kind == FileKind.IMAGE || kind == FileKind.VIDEO || kind == FileKind.AUDIO || kind == FileKind.APK
     val bitmap by produceState<ImageBitmap?>(null, file.path, file.lastModified()) {
@@ -79,7 +83,9 @@ fun rememberThumbnail(file: File, kind: FileKind?, px: Int = 256): ImageBitmap? 
         val key = file.path + ":" + file.lastModified() + ":" + px
         thumbs.get(key)?.let { value = it.asImageBitmap(); return@produceState }
         value = withContext(thumbDispatcher) {
-            runCatching { loadThumb(context, file, kind!!, px) }.getOrNull()?.also { thumbs.put(key, it) }?.asImageBitmap()
+            runCatching {
+                media?.let { runCatching { context.contentResolver.loadThumbnail(it, Size(px, px), null) }.getOrNull() } ?: loadThumb(context, file, kind!!, px)
+            }.getOrNull()?.also { thumbs.put(key, it) }?.asImageBitmap()
         }
     }
     return bitmap
@@ -102,10 +108,10 @@ private fun loadThumb(context: Context, file: File, kind: FileKind, px: Int): Bi
 
 /** The coloured tile beside a name: a folder, a preview, or the file type. */
 @Composable
-fun KindMark(kind: FileKind?, file: File? = null, size: Dp = 44.dp) {
+fun KindMark(kind: FileKind?, file: File? = null, size: Dp = 44.dp, media: android.net.Uri? = null) {
     val paper = LocalPaper.current
     val color = if (kind == null) MaterialTheme.colorScheme.primary else familyColor(kind, paper.dark)
-    val thumb = if (file != null) rememberThumbnail(file, kind) else null
+    val thumb = if (file != null) rememberThumbnail(file, kind, media = media) else null
     Box(
         Modifier.size(size).clip(MaterialTheme.shapes.medium)
             .background(if (kind == null) MaterialTheme.colorScheme.primaryContainer else color.copy(alpha = 0.16f)),
@@ -148,7 +154,7 @@ fun FileRow(e: Entry, selected: Boolean, selecting: Boolean, onClick: () -> Unit
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
-            KindMark(e.kind, e.file)
+            KindMark(e.kind, e.file, media = e.media)
             if (selected) Icon(
                 Icons.Rounded.CheckCircle, null, tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.align(Alignment.BottomEnd).size(18.dp).clip(MaterialTheme.shapes.extraLarge).background(MaterialTheme.colorScheme.surface),
@@ -166,7 +172,7 @@ fun FileRow(e: Entry, selected: Boolean, selecting: Boolean, onClick: () -> Unit
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileCell(e: Entry, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val thumb = rememberThumbnail(e.file, e.kind, 384)
+    val thumb = rememberThumbnail(e.file, e.kind, 384, e.media)
     Column(
         Modifier.padding(4.dp).clip(MaterialTheme.shapes.large)
             .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer)
@@ -181,8 +187,9 @@ fun FileCell(e: Entry, selected: Boolean, onClick: () -> Unit, onLongClick: () -
             }
             if (selected) Icon(Icons.Rounded.CheckCircle, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
         }
+        // Always two lines tall, so every card in the grid is the same size; long names end in "…".
         Text(
-            e.file.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            e.file.name, style = MaterialTheme.typography.bodyMedium, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
         )
     }

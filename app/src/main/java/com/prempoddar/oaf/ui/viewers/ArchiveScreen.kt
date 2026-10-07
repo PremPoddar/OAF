@@ -1,5 +1,8 @@
 package com.prempoddar.oaf.ui.viewers
 
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.Lock
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -67,6 +70,8 @@ import java.util.Date
 private sealed interface ArchiveState {
     class Ready(val file: File, val type: ArchiveType, val entries: List<ArchiveEntry>) : ArchiveState
     class Failed(val reason: String) : ArchiveState
+    /** Locked: waiting for a password ([wrong] if the last one didn't work). */
+    class Locked(val wrong: Boolean) : ArchiveState
 }
 
 /** Kind from the name alone, for showing what's inside without unpacking it. */
@@ -78,13 +83,14 @@ fun ArchiveScreen(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> 
     val context = LocalContext.current
     val paper = LocalPaper.current
     val scope = rememberCoroutineScope()
-    val state by produceState<ArchiveState?>(null, source) {
+    var password by remember { mutableStateOf<String?>(null) }
+    val state by produceState<ArchiveState?>(null, source, password) {
         value = withContext(Dispatchers.IO) {
             runCatching {
                 val file = source.local(context)
                 val type = Archives.typeOf(source.name, file.inputStream().use { it.readNBytesCompat(512) }) ?: error("OAF doesn't know this kind of archive")
-                ArchiveState.Ready(file, type, Archives.list(file, type))
-            }.getOrElse { ArchiveState.Failed(it.message ?: "Couldn't read this archive") }
+                ArchiveState.Ready(file, type, Archives.list(file, type, password))
+            }.getOrElse { if (it is Archives.PasswordNeeded) ArchiveState.Locked(it.wrong) else ArchiveState.Failed(it.message ?: "Couldn't read this archive") }
         }
     }
     var folder by remember { mutableStateOf("") }
@@ -95,7 +101,7 @@ fun ArchiveScreen(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> 
     fun open(s: ArchiveState.Ready, e: ArchiveEntry) = scope.launch {
         working = true
         val f = File(cache, e.path)
-        val ok = withContext(Dispatchers.IO) { runCatching { if (!f.exists() || f.length() != e.size) Archives.extract(s.file, s.type, e.path, f) } }
+        val ok = withContext(Dispatchers.IO) { runCatching { if (!f.exists() || f.length() != e.size) Archives.extract(s.file, s.type, e.path, f, password) } }
         working = false
         ok.onSuccess { onOpen(DocSource.fromFile(f)) }.onFailure { Toast.makeText(context, it.message ?: "Couldn't open ${e.name}", Toast.LENGTH_SHORT).show() }
     }
@@ -109,7 +115,7 @@ fun ArchiveScreen(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> 
                 runCatching {
                     // Unpacked into the cache first, then copied into the chosen folder.
                     val temp = File(context.cacheDir, "unpack").apply { deleteRecursively(); mkdirs() }
-                    val count = Archives.extractAll(s.file, s.type, temp, folder)
+                    val count = Archives.extractAll(s.file, s.type, temp, folder, password = password)
                     val root = DocumentFile.fromTreeUri(context, tree) ?: error("Can't write there")
                     val base = root.createDirectory(source.name.substringBefore('.').ifBlank { "Extracted" }) ?: root
                     copyInto(context, temp, base)
@@ -128,7 +134,7 @@ fun ArchiveScreen(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> 
             runCatching {
                 val parent = source.file!!.parentFile!!
                 val dir = FileOps.freeName(parent, source.name.substringBefore('.').ifBlank { "Extracted" }).apply { mkdirs() }
-                Archives.extractAll(s.file, s.type, dir, folder) to dir
+                Archives.extractAll(s.file, s.type, dir, folder, password = password) to dir
             }
         }
         working = false
@@ -164,6 +170,7 @@ fun ArchiveScreen(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> 
         when (val s = state) {
             null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             is ArchiveState.Failed -> Text(s.reason, color = paper.muted, modifier = Modifier.padding(24.dp).padding(top = top))
+            is ArchiveState.Locked -> ArchivePassword(s.wrong, onBack, onUnlock = { password = it })
             is ArchiveState.Ready -> {
                 val here = remember(s, folder) {
                     s.entries.filter { it.parent == folder.trimEnd('/') && it.path != folder }
@@ -201,4 +208,29 @@ private fun copyInto(context: Context, from: File, to: DocumentFile) {
             context.contentResolver.openOutputStream(target.uri)?.use { out -> f.inputStream().use { it.copyTo(out) } }
         }
     }
+}
+
+/** Asks for an archive's password; shown again (with a note) if it was wrong. */
+@Composable
+private fun ArchivePassword(wrong: Boolean, onCancel: () -> Unit, onUnlock: (String) -> Unit) {
+    var value by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onCancel,
+        icon = { Icon(androidx.compose.material.icons.Icons.Rounded.Lock, null) },
+        title = { Text("Password protected") },
+        text = {
+            androidx.compose.foundation.layout.Column {
+                Text(if (wrong) "That password didn't work. Try again." else "Enter the password to open this archive.")
+                com.prempoddar.oaf.ui.design.PillTextField(
+                    value, { value = it }, "Password", Modifier.padding(top = 12.dp), isError = wrong, clearable = false,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+                    visualTransformation = if (show) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    trailing = { androidx.compose.material3.IconButton(onClick = { show = !show }) { Icon(if (show) androidx.compose.material.icons.Icons.Rounded.VisibilityOff else androidx.compose.material.icons.Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } },
+                )
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = value.isNotEmpty(), onClick = { onUnlock(value) }) { Text("Open") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text("Cancel") } },
+    )
 }

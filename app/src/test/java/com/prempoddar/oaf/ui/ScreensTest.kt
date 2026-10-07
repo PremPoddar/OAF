@@ -129,6 +129,29 @@ class ScreensTest {
 
     @Test fun docPageView() = sampleDocx().let { f -> shoot("doc-page", light) { com.prempoddar.oaf.ui.viewers.DocScreen(com.prempoddar.oaf.io.DocSource.fromFile(f).detect(ApplicationProvider.getApplicationContext())) {} } }
 
+    private fun fixture(name: String): File {
+        val f = File(ApplicationProvider.getApplicationContext<Application>().cacheDir, name.substringAfterLast('/'))
+        javaClass.classLoader!!.getResourceAsStream(name)!!.use { input -> f.outputStream().use { input.copyTo(it) } }
+        return f
+    }
+
+    private fun samplePpt(): File {
+        val f = File(ApplicationProvider.getApplicationContext<Application>().cacheDir, "old.ppt")
+        org.apache.poi.hslf.usermodel.HSLFSlideShow().use { show ->
+            val s1 = show.createSlide()
+            s1.addTitle().setText("Old deck")
+            val box = s1.createTextBox(); box.setText("First point\rSecond point")
+            show.createSlide().addTitle().setText("Second slide")
+            f.outputStream().use { show.write(it) }
+        }
+        return f
+    }
+
+    private fun openDeck(f: File) = com.prempoddar.oaf.io.DocSource.fromFile(f).detect(ApplicationProvider.getApplicationContext())
+
+    @Test fun slidesPptx() = fixture("decks/sample.pptx").let { f -> shoot("slides-pptx", light) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
+    @Test fun slidesPpt() = samplePpt().let { f -> shoot("slides-ppt", dark) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
+
     @Config(qualifiers = "w891dp-h411dp-land-xxhdpi")
     @Test fun homeLandscape() = shoot("home-land", light) { FilesHome({}, {}) }
 }

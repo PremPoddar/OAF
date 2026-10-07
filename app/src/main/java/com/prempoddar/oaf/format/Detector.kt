@@ -100,7 +100,7 @@ object Detector {
             "docx", "docm", "dotx" -> FileKind.DOCX
             "xlsx", "xlsm", "xltx" -> FileKind.XLSX
             "pptx", "pptm", "ppsx" -> FileKind.PPTX
-            "apk" -> FileKind.APK
+            "apk", "apks", "xapk", "apkm" -> FileKind.APK
             "epub" -> FileKind.EPUB
             else -> FileKind.ZIP
         }
@@ -154,6 +154,13 @@ object Detector {
         "scss" to Lang.CSS, "less" to Lang.CSS, "gradle" to Lang.GRADLE, "ini" to Lang.INI, "cfg" to Lang.INI,
         "conf" to Lang.INI, "toml" to Lang.INI, "properties" to Lang.INI, "env" to Lang.INI, "bat" to Lang.SHELL,
         "ps1" to Lang.SHELL, "m" to Lang.C, "mm" to Lang.CPP, "vue" to Lang.JAVASCRIPT, "svelte" to Lang.JAVASCRIPT,
+        "groovy" to Lang.GRADLE, "kts" to Lang.KOTLIN, "sol" to Lang.JAVASCRIPT, "astro" to Lang.JAVASCRIPT,
+        "ex" to Lang.RUBY, "exs" to Lang.RUBY, "cr" to Lang.RUBY, "cmake" to Lang.SHELL, "tf" to Lang.INI, "hcl" to Lang.INI,
+        "cfm" to Lang.PLAIN, "hs" to Lang.PLAIN, "elm" to Lang.PLAIN, "clj" to Lang.PLAIN, "cljs" to Lang.PLAIN, "erl" to Lang.PLAIN,
+        "fs" to Lang.PLAIN, "fsx" to Lang.PLAIN, "vb" to Lang.PLAIN, "zig" to Lang.PLAIN, "nim" to Lang.PLAIN, "jl" to Lang.PLAIN,
+        "asm" to Lang.PLAIN, "s" to Lang.PLAIN, "v" to Lang.PLAIN, "sv" to Lang.PLAIN, "vhd" to Lang.PLAIN, "glsl" to Lang.C,
+        "hlsl" to Lang.C, "metal" to Lang.CPP, "proto" to Lang.C, "graphql" to Lang.PLAIN, "gql" to Lang.PLAIN, "kql" to Lang.SQL,
+        "psql" to Lang.SQL, "ino" to Lang.CPP, "pas" to Lang.PLAIN, "d" to Lang.C, "ml" to Lang.PLAIN, "rkt" to Lang.PLAIN,
     )
 
     private fun langOf(ext: String, base: String) = codeExt[ext] ?: if (base == "dockerfile") Lang.DOCKERFILE else Lang.PLAIN
@@ -191,7 +198,7 @@ object Detector {
         "bz2", "tbz2" -> FileKind.BZIP2
         "xz", "txz" -> FileKind.XZ
         "rar" -> FileKind.RAR
-        "apk" -> FileKind.APK
+        "apk", "apks", "xapk", "apkm" -> FileKind.APK
         "ttf", "otf", "woff", "woff2", "ttc" -> FileKind.FONT
         else -> null
     }

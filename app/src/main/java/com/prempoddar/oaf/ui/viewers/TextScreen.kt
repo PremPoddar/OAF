@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import com.prempoddar.oaf.export.PrintHtml
 import com.prempoddar.oaf.export.Printing
 import android.annotation.SuppressLint
@@ -171,7 +173,8 @@ fun TextScreen(source: DocSource, onBack: () -> Unit) {
     var fontScale by remember { mutableStateOf(1f) }
 
     LaunchedEffect(loaded) { (loaded as? TextLoaded.Small)?.let { value = TextFieldValue(it.text); saved = it.text } }
-    val dirty = editing && value.text != saved
+    // Unsaved changes stay unsaved when switching back to View, so View shows them too.
+    val dirty = loaded is TextLoaded.Small && value.text != saved
 
     val saveCopy = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(source.mime ?: "text/plain")) { uri ->
         val l = loaded as? TextLoaded.Small ?: return@rememberLauncherForActivityResult
@@ -203,12 +206,14 @@ fun TextScreen(source: DocSource, onBack: () -> Unit) {
         },
         chrome = chrome, autoHide = !editing, onBack = { if (dirty) confirmLeave = true else onBack() },
         actions = {
+            val twoModes = loaded is TextLoaded.Small && (source.kind == FileKind.MARKDOWN || source.kind == FileKind.HTML)
+            if (twoModes) ModeSwitch(editing, onView = { editing = false; rendered = true; findOpen = false }, onEdit = { editing = true; rendered = false; chrome.show() })
             if (editing) {
                 IconButton(enabled = undo.isNotEmpty(), onClick = { redo += value; value = undo.removeAt(undo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
                 IconButton(enabled = redo.isNotEmpty(), onClick = { undo += value; value = redo.removeAt(redo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
                 IconButton(onClick = { findOpen = !findOpen }) { Icon(Icons.Rounded.Search, "Find and replace") }
                 IconButton(enabled = dirty, onClick = ::save) { Icon(Icons.Rounded.Save, "Save") }
-            } else if (loaded is TextLoaded.Small) {
+            } else if (loaded is TextLoaded.Small && !twoModes) {
                 IconButton(onClick = { editing = true; rendered = false; pretty = false; chrome.show() }) { Icon(Icons.Rounded.Edit, "Edit") }
             }
             Box {
@@ -250,8 +255,8 @@ fun TextScreen(source: DocSource, onBack: () -> Unit) {
                         value = v
                     }, highlighter = highlighter.takeIf { value.text.length < HIGHLIGHT_EDIT_LIMIT }, style = style, wrap = wrap, paper = paper)
                 }
-                rendered && source.kind == FileKind.MARKDOWN -> HtmlView(markdownToHtml(l.text, paper, fontScale), insets.calculateTopPadding(), chrome::toggle)
-                rendered && source.kind == FileKind.HTML -> HtmlView(l.text, insets.calculateTopPadding(), chrome::toggle)
+                rendered && source.kind == FileKind.MARKDOWN -> HtmlView(markdownToHtml(value.text.ifEmpty { l.text }, paper, fontScale), insets.calculateTopPadding(), chrome::toggle)
+                rendered && source.kind == FileKind.HTML -> HtmlView(value.text.ifEmpty { l.text }, insets.calculateTopPadding(), chrome::toggle)
                 else -> {
                     val shown = remember(l.text, pretty) {
                         val p = if (pretty) (if (source.kind == FileKind.JSON) Pretty.json(l.text) else Pretty.xml(l.text)) else null
@@ -413,4 +418,22 @@ fun readerHtml(body: String, p: Paper, scale: Float = 1f): String {
         table { border-collapse: collapse; display: block; overflow-x: auto; } td, th { border: 1px solid ${hex(p.rule)}; padding: 6px 10px; }
         hr { border: 0; border-top: 1px solid ${hex(p.rule)}; }
         </style></head><body>$body</body></html>"""
+}
+
+/** View | Edit, for files that read one way and are written another (Markdown, HTML). */
+@Composable
+private fun ModeSwitch(editing: Boolean, onView: () -> Unit, onEdit: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    androidx.compose.foundation.layout.Row(
+        Modifier.padding(end = 4.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c.surfaceContainerHighest).padding(3.dp),
+    ) {
+        listOf(false to "View", true to "Edit").forEach { (mode, label) ->
+            val on = editing == mode
+            Text(
+                label, style = MaterialTheme.typography.labelLarge, color = if (on) c.onSecondaryContainer else c.onSurfaceVariant,
+                modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).background(if (on) c.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+                    .clickable { if (!on) { if (mode) onEdit() else onView() } }.padding(horizontal = 14.dp, vertical = 6.dp),
+            )
+        }
+    }
 }

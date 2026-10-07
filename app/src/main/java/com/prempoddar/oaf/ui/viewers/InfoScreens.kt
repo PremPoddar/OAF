@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers
 
+import kotlinx.coroutines.launch
+import com.prempoddar.oaf.files.Installer
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.graphics.Typeface
@@ -76,7 +78,7 @@ private fun InfoRow(label: String, value: String, mono: Boolean = false) {
 
 private class ApkInfo(
     val label: String, val icon: Drawable?, val pkg: String, val version: String, val code: Long, val minSdk: Int?, val targetSdk: Int?,
-    val permissions: List<String>, val signer: String?, val installed: String?, val size: Long,
+    val permissions: List<String>, val signer: String?, val installed: String?, val size: Long, val installedCode: Long? = null,
 )
 
 private fun sdkName(level: Int) = "API $level" + when (level) {
@@ -96,7 +98,7 @@ fun ApkScreen(source: DocSource, onBack: () -> Unit) {
     val info by produceState<Result<ApkInfo>?>(null, source) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                val file = source.local(context)
+                val file = Installer.baseApk(source.local(context), context.cacheDir)
                 val pm = context.packageManager
                 val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_SIGNING_CERTIFICATES
                 val p: PackageInfo = pm.getPackageArchiveInfo(file.path, flags) ?: error("This isn't a readable app package")
@@ -108,7 +110,7 @@ fun ApkScreen(source: DocSource, onBack: () -> Unit) {
                     p.longVersionCode, app.minSdkVersion, app.targetSdkVersion,
                     p.requestedPermissions?.toList().orEmpty().sorted(),
                     cert?.toByteArray()?.let { MessageDigest.getInstance("SHA-256").digest(it).joinToString(":") { b -> "%02X".format(b) } },
-                    installed, file.length(),
+                    installed, source.local(context).length(), runCatching { pm.getPackageInfo(p.packageName, 0).longVersionCode }.getOrNull(),
                 )
             }
         }
@@ -120,7 +122,7 @@ fun ApkScreen(source: DocSource, onBack: () -> Unit) {
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Install with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    DropdownMenuItem(text = { Text("Install with another app…") }, onClick = { menu = false; openElsewhere(context, source) })
                     DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
                 }
             }
@@ -142,6 +144,8 @@ fun ApkScreen(source: DocSource, onBack: () -> Unit) {
                                     Text(a.pkg, style = CodeStyle, color = paper.muted)
                                 }
                             }
+                            Spacer(Modifier.height(16.dp))
+                            InstallButton(source, a)
                             Spacer(Modifier.height(16.dp))
                             InfoRow("Version", "${a.version} (${a.code})")
                             a.installed?.let { InfoRow("Installed", "version $it") }
@@ -229,4 +233,38 @@ fun FontScreen(source: DocSource, onBack: () -> Unit) {
             )
         }
     }
+}
+
+/** Install, Update or Reinstall, depending on what's on the phone; asks for permission first if needed. */
+@Composable
+private fun InstallButton(source: DocSource, a: ApkInfo) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var allowed by remember { mutableStateOf(Installer.allowed(context)) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { allowed = Installer.allowed(context); onPauseOrDispose { } }
+    var working by remember { mutableStateOf(false) }
+    val label = when {
+        a.installedCode == null -> "Install"
+        a.installedCode < a.code -> "Update"
+        a.installedCode == a.code -> "Reinstall"
+        else -> "Install older version"
+    }
+    com.prempoddar.oaf.ui.design.BigButton(
+        if (working) "Preparing…" else label,
+        onClick = {
+            if (!allowed) { Installer.openPermission(context); return@BigButton }
+            working = true
+            scope.launch {
+                val error = withContext(Dispatchers.IO) { runCatching { Installer.install(context, source.local(context)) }.exceptionOrNull() }
+                working = false
+                error?.let { android.widget.Toast.makeText(context, it.message ?: "Couldn't install this app", android.widget.Toast.LENGTH_LONG).show() }
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !working,
+    )
+    if (!allowed) Text(
+        "Android will ask you to let OAF install apps the first time.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp),
+    )
 }

@@ -90,7 +90,15 @@ object Slides {
                 }
             } ?: (null to Theme(emptyMap()))
             val ph = HashMap<String, Pair<FloatArray?, Float?>>()
-            listOfNotNull(master, layout).forEach { p -> p.root.descendants("sp").forEach { sp -> placeholderKey(sp)?.let { k -> ph[k] = xfrm(sp.kid("spPr")) to firstSize(sp) } } }
+            // The layout refines the master; where it leaves position or size out, the master's still apply.
+            listOfNotNull(master, layout).forEach { p ->
+                p.root.descendants("sp").forEach { sp ->
+                    placeholderKey(sp)?.let { k ->
+                        val before = ph[k] ?: ph.entries.firstOrNull { it.key.substringBefore(':') == k.substringBefore(':') }?.value
+                        ph[k] = (xfrm(sp.kid("spPr")) ?: before?.first) to (firstSize(sp) ?: before?.second)
+                    }
+                }
+            }
             val tx = master?.root?.kid("txStyles")
             fun lvl(style: String, n: Int) = tx?.kid(style)?.kid("lvl${n}pPr")?.kid("defRPr")?.getAttribute("sz")?.toFloatOrNull()?.div(100)
             val ctx = Context(theme, ph, lvl("titleStyle", 1) ?: 44f, (1..5).map { lvl("bodyStyle", it) ?: (28f - (it - 1) * 4f).coerceAtLeast(14f) }, lvl("otherStyle", 1) ?: 18f)
@@ -183,7 +191,8 @@ object Slides {
     private fun xfrm(spPr: Element?): FloatArray? {
         val x = spPr?.kid("xfrm") ?: return null
         val off = x.kid("off") ?: return null; val ext = x.kid("ext") ?: return null
-        return floatArrayOf(off.getAttribute("x").toFloat() / EMU, off.getAttribute("y").toFloat() / EMU, ext.getAttribute("cx").toFloat() / EMU, ext.getAttribute("cy").toFloat() / EMU)
+        fun n(e: Element, a: String) = e.getAttribute(a).toFloatOrNull() ?: 0f
+        return floatArrayOf(n(off, "x") / EMU, n(off, "y") / EMU, n(ext, "cx") / EMU, n(ext, "cy") / EMU)
     }
 
     private fun firstSize(sp: Element): Float? = sp.descendants("lvl1pPr").firstOrNull()?.kid("defRPr")?.getAttribute("sz")?.toFloatOrNull()?.div(100)

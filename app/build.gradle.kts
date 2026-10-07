@@ -93,6 +93,7 @@ dependencies {
     implementation(libs.commons.compress)
     implementation(libs.xz)
     implementation(libs.junrar)
+    implementation(libs.zip4j)
     implementation(libs.commonmark)
     implementation(libs.commonmark.tables)
     implementation(libs.androidsvg)

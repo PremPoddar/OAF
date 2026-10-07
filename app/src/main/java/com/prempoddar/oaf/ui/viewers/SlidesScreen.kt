@@ -169,17 +169,19 @@ private fun Presenter(deck: Deck, start: Int, onExit: () -> Unit) {
 private fun SlideView(deck: Deck, slide: Slide, modifier: Modifier) {
     val pictures by produceState<Map<String, Bitmap>>(emptyMap(), slide) {
         value = withContext(Dispatchers.IO) {
-            slide.shapes.filterIsInstance<SlideShape.Picture>().map { it.path }.distinct().mapNotNull { path ->
+            // A picture that can't be read (closed file, odd format, too big) is just left out.
+            runCatching { slide.shapes.filterIsInstance<SlideShape.Picture>().map { it.path }.distinct().mapNotNull { path ->
                 val bytes = deck.image(path) ?: return@mapNotNull null
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
                 var sample = 1
                 while (bounds.outWidth / sample > 1600) sample *= 2
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })?.let { path to it }
-            }.toMap()
+                runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) }.getOrNull()?.let { path to it }
+            }.toMap() }.getOrDefault(emptyMap())
         }
     }
-    Canvas(modifier.aspectRatio(deck.width / deck.height, matchHeightConstraintsFirst = false)) {
+    val ratio = (deck.width / deck.height).takeIf { it.isFinite() && it > 0f } ?: (4f / 3f)
+    Canvas(modifier.aspectRatio(ratio, matchHeightConstraintsFirst = false)) {
         val s = size.width / deck.width
         drawIntoCanvas { c -> drawSlide(c.nativeCanvas, slide, s, pictures) }
     }
@@ -192,7 +194,15 @@ private fun drawSlide(canvas: android.graphics.Canvas, slide: Slide, s: Float, p
     val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
-    for (shape in slide.shapes) {
+    for (shape in slide.shapes) runCatching {
+        // One shape that can't be drawn mustn't take the whole presentation down.
+        canvas.save()
+        try { drawShape(canvas, shape, s, pictures, fill, stroke, bitmapPaint) } finally { canvas.restore() }
+    }
+}
+
+private fun drawShape(canvas: android.graphics.Canvas, shape: SlideShape, s: Float, pictures: Map<String, Bitmap>, fill: Paint, stroke: Paint, bitmapPaint: Paint) {
+    run {
         val r = RectF(shape.x * s, shape.y * s, (shape.x + shape.w) * s, (shape.y + shape.h) * s)
         when (shape) {
             is SlideShape.Picture -> pictures[shape.path]?.let { canvas.drawBitmap(it, null, r, bitmapPaint) }

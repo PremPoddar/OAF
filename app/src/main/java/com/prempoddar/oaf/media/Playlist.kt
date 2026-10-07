@@ -21,6 +21,20 @@ class Playlist(val items: List<File>, val start: Int) {
             return if (start < 0) Playlist(listOf(file), 0) else Playlist(items, start)
         }
 
+        /**
+         * Subtitles for every video in one folder listing: video stem → its subtitle files. Much
+         * faster than looking for each video's subtitles separately in a big folder.
+         */
+        fun subtitleIndex(dir: File?): Map<String, List<File>> {
+            val subs = dir?.listFiles()?.filter { it.isFile && it.extension.lowercase() in SUBS }.orEmpty()
+            return subs.groupBy { it.name.substringBefore('.') }.mapValues { (_, l) -> l.sortedBy { it.name } }
+        }
+
+        fun subtitlesFrom(index: Map<String, List<File>>, video: File): List<File> {
+            val stem = video.nameWithoutExtension
+            return index.values.flatten().filter { it.nameWithoutExtension == stem || it.name.startsWith("$stem.") }.sortedBy { it.name }
+        }
+
         /** Subtitle files beside a video that share its name, like Film.srt or Film.en.vtt. */
         fun subtitlesFor(video: File): List<File> {
             val stem = video.nameWithoutExtension

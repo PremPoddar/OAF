@@ -175,6 +175,7 @@ fun PillTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     trailing: (@Composable () -> Unit)? = null,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
 ) {
     TextField(
         value = value, onValueChange = onValueChange, modifier = modifier.fillMaxWidth(), enabled = enabled,
@@ -185,7 +186,7 @@ fun PillTextField(
         trailingIcon = trailing ?: if (clearable && value.isNotEmpty() && enabled) {
             { IconButton(onClick = { onValueChange("") }) { Icon(Icons.Rounded.Cancel, "Clear") } }
         } else null,
-        keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
+        keyboardOptions = keyboardOptions, keyboardActions = keyboardActions, visualTransformation = visualTransformation,
         shape = RoundedCornerShape(20.dp),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,

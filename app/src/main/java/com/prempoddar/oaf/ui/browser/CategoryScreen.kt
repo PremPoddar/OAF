@@ -69,8 +69,11 @@ private val documentMimes = listOf(
 )
 private val archiveExts = listOf("zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz")
 
-/** Every file of one kind on the phone, from Android's media index so it's instant. */
-fun queryCategory(context: Context, category: Category): List<File> {
+/**
+ * Every file of one kind on the phone, straight from Android's media index: names, sizes and
+ * dates come with the query, so nothing on disk is touched until a thumbnail is drawn.
+ */
+fun queryCategory(context: Context, category: Category): List<Entry> {
     val files = MediaStore.Files.getContentUri("external")
     val col = MediaStore.Files.FileColumns.MIME_TYPE
     val data = MediaStore.Files.FileColumns.DATA
@@ -82,13 +85,22 @@ fun queryCategory(context: Context, category: Category): List<File> {
         Category.ARCHIVES -> archiveExts.joinToString(" OR ") { "$data LIKE ?" } to archiveExts.map { "%.$it" }.toTypedArray()
         Category.APKS -> "$data LIKE ?" to arrayOf("%.apk")
     }
-    val out = ArrayList<File>()
+    val projection = arrayOf(MediaStore.Files.FileColumns._ID, data, MediaStore.Files.FileColumns.SIZE, MediaStore.Files.FileColumns.DATE_MODIFIED)
+    val thumbs = category == Category.IMAGES || category == Category.VIDEOS || category == Category.AUDIO
+    val out = ArrayList<Entry>()
     runCatching {
-        context.contentResolver.query(files, arrayOf(data), selection, args, "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC")?.use { c ->
-            while (c.moveToNext()) c.getString(0)?.let { out += File(it) }
+        context.contentResolver.query(files, projection, selection, args, "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC")?.use { c ->
+            while (c.moveToNext()) {
+                val path = c.getString(1) ?: continue
+                val f = File(path)
+                out += Entry(
+                    f, kindOf(f), c.getLong(2), c.getLong(3) * 1000, 0,
+                    if (thumbs) android.content.ContentUris.withAppendedId(files, c.getLong(0)) else null,
+                )
+            }
         }
     }
-    return out.filter { it.isFile }
+    return out
 }
 
 @Composable
@@ -108,7 +120,7 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
 
     val all by produceState<List<Entry>?>(null, changes, settings.showHidden) {
         value = withContext(Dispatchers.IO) {
-            queryCategory(context, category).filter { settings.showHidden || !it.path.contains("/.") }.map(::entryOf)
+            queryCategory(context, category).filter { settings.showHidden || !it.file.path.contains("/.") }
         }
     }
     val list = all?.let { l ->

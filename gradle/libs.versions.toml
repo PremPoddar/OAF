@@ -17,6 +17,7 @@ poi = "5.5.1"
 compress = "1.28.0"
 xz = "1.12"
 junrar = "7.5.5"
+zip4j = "2.11.5"
 commonmark = "0.30.0"
 androidsvg = "1.4"
 documentfile = "1.0.1"
@@ -54,6 +55,7 @@ poi-scratchpad = { group = "org.apache.poi", name = "poi-scratchpad", version.re
 commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "compress" }
 xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 junrar = { group = "com.github.junrar", name = "junrar", version.ref = "junrar" }
+zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
 commonmark = { group = "org.commonmark", name = "commonmark", version.ref = "commonmark" }
 commonmark-tables = { group = "org.commonmark", name = "commonmark-ext-gfm-tables", version.ref = "commonmark" }
 androidsvg = { group = "com.caverock", name = "androidsvg-aar", version.ref = "androidsvg" }

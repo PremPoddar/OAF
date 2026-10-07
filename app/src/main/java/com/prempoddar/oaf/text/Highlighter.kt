@@ -208,7 +208,12 @@ class Highlighter private constructor(private val spec: Spec) {
                 Lang.R, Lang.PERL -> Spec(setOf("if", "else", "for", "while", "function", "return", "in", "next", "break", "repeat", "my", "sub", "use", "foreach", "unless", "elsif"), literals = setOf("TRUE", "FALSE", "NULL", "NA", "undef"), lineComments = listOf("#"))
                 Lang.CSS -> Spec(setOf("important", "media", "import", "keyframes", "font-face", "supports"), lineComments = listOf("//"), blockStart = "/*", blockEnd = "*/", annotations = '@')
                 Lang.INI -> Spec(lineComments = listOf(";", "#"), keyValue = true, literals = setOf("true", "false", "yes", "no", "on", "off"))
-                Lang.PLAIN -> Spec()
+                // Languages without their own rules still get strings, numbers and the usual comments.
+                Lang.PLAIN -> Spec(
+                    setOf("if", "else", "for", "while", "do", "return", "function", "fn", "def", "let", "var", "const", "class", "module", "import", "export",
+                        "public", "private", "static", "struct", "enum", "type", "match", "case", "when", "then", "end", "begin", "true", "false", "null", "nil"),
+                    lineComments = listOf("//", "#", "--", ";"), blockStart = "/*", blockEnd = "*/",
+                )
             },
         )
     }

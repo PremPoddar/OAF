@@ -149,32 +149,43 @@ private fun Context.activity(): Activity? = when (this) {
     else -> null
 }
 
-private fun itemFor(f: File, video: Boolean): MediaItem {
-    val subs = if (video) Playlist.subtitlesFor(f).map { s ->
+private fun itemFor(f: File, video: Boolean, subtitles: List<File> = if (video) Playlist.subtitlesFor(f) else emptyList()): MediaItem {
+    val subs = subtitles.map { s ->
         MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(s)).setMimeType(Playlist.mimeOfSubtitle(s))
             .setLanguage(Playlist.language(s, f.nameWithoutExtension)).setLabel(s.name).build()
-    } else emptyList()
+    }
     return MediaItem.Builder().setUri(Uri.fromFile(f)).setMediaId(f.path)
         .setMediaMetadata(MediaMetadata.Builder().setTitle(f.nameWithoutExtension).build())
         .setSubtitleConfigurations(subs).build()
 }
 
-private fun itemsFor(source: DocSource, video: Boolean): Pair<List<MediaItem>, Int> {
-    val file = source.file
-    if (file != null) {
-        val list = Playlist.around(file)
-        return list.items.map { itemFor(it, video) } to list.start
-    }
-    return listOf(
-        MediaItem.Builder().setUri(source.uri).setMediaId(source.uri.toString())
-            .setMediaMetadata(MediaMetadata.Builder().setTitle(source.name.substringBeforeLast('.')).build()).build(),
-    ) to 0
+/** Just the file that was opened, so playback starts at once. */
+private fun firstItem(source: DocSource, video: Boolean): MediaItem = source.file?.let { itemFor(it, video) }
+    ?: MediaItem.Builder().setUri(source.uri).setMediaId(source.uri.toString())
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(source.name.substringBeforeLast('.')).build()).build()
+
+/** The rest of the folder, before and after the opened file, read off the main thread. */
+private suspend fun neighbours(source: DocSource, video: Boolean): Pair<List<MediaItem>, List<MediaItem>> = withContext(Dispatchers.IO) {
+    val file = source.file ?: return@withContext emptyList<MediaItem>() to emptyList()
+    val list = Playlist.around(file)
+    if (list.items.size <= 1) return@withContext emptyList<MediaItem>() to emptyList()
+    val subs = if (video) Playlist.subtitleIndex(file.parentFile) else emptyMap()
+    fun item(f: File) = itemFor(f, video, if (video) Playlist.subtitlesFrom(subs, f) else emptyList())
+    list.items.take(list.start).map(::item) to list.items.drop(list.start + 1).map(::item)
+}
+
+/** Adds the folder around the playing item without interrupting it. */
+private suspend fun Player.fillQueue(source: DocSource, video: Boolean) {
+    val (before, after) = neighbours(source, video)
+    if (after.isNotEmpty()) addMediaItems(after)
+    if (before.isNotEmpty()) addMediaItems(0, before)
 }
 
 /**
  * Music plays through the app's media service, so it carries on with the screen off and shows
  * lock-screen controls. Videos get their own player on this screen.
  */
+@OptIn(UnstableApi::class)
 @Composable
 fun MediaViewer(source: DocSource, onBack: () -> Unit) {
     var editing by remember { mutableStateOf(false) }
@@ -188,14 +199,16 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
             ExoPlayer.Builder(context)
                 .setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
                 .setHandleAudioBecomingNoisy(true)
+                // Local files are fast: start as soon as half a second is ready rather than 2.5 s.
+                .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder().setBufferDurationsMs(15_000, 50_000, 500, 1_000).build())
                 .build().apply {
-                    val (items, start) = itemsFor(source, video = true)
-                    setMediaItems(items, start, 0)
+                    setMediaItem(firstItem(source, video = true))
                     prepare()
                     playWhenReady = true
                 }
         }
         DisposableEffect(Unit) { onDispose { player.release() } }
+        LaunchedEffect(player) { player.fillQueue(source, video = true) }
         VideoPlayer(rememberPlayerState(player), source, onBack, onEdit = { player.pause(); editing = true })
         return
     }
@@ -208,11 +221,11 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
     LaunchedEffect(controller, source.uri) {
         val id = source.file?.path ?: source.uri.toString()
         if (controller.currentMediaItem?.mediaId != id) {
-            val (items, start) = itemsFor(source, video = false)
-            controller.setMediaItems(items, start, 0)
+            controller.setMediaItem(firstItem(source, video = false))
             controller.prepare()
-        }
-        controller.play()
+            controller.play()
+            controller.fillQueue(source, video = false)
+        } else controller.play()
     }
     AudioPlayer(rememberPlayerState(controller), source, onBack, onEdit = { controller.pause(); editing = true })
 }

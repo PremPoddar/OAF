@@ -1,5 +1,23 @@
 package com.prempoddar.oaf.ui.viewers
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.automirrored.rounded.Notes
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextIndent
+import com.prempoddar.oaf.doc.DocLayout
+import com.prempoddar.oaf.doc.ParaLayout
+import com.prempoddar.oaf.doc.PageSetup
 import com.prempoddar.oaf.export.PrintHtml
 import com.prempoddar.oaf.export.Printing
 import android.content.Context
@@ -174,6 +192,8 @@ private fun loadDoc(context: Context, source: DocSource): LoadedDoc {
     return LoadedDoc(Docx.blank(), body, false)
 }
 
+private val WORD_LINK = Color(0xFF0563C1)
+
 private const val SENTINEL = '​'
 
 @Composable
@@ -192,11 +212,26 @@ fun DocScreen(source: DocSource, onBack: () -> Unit) {
     }
 }
 
-/** How a document looks on this screen: Word sizes scaled so body text reads at a comfortable size. */
-private class Look(val styles: DocStyles, val paper: Paper, val scale: Float, val labels: Map<Long, String>) {
+/**
+ * How a document looks on this screen. With a [page], it's drawn as the document itself: real
+ * sizes in points, spacing, indents and colours, black on white paper (the page view). Without
+ * one, it's reflowed for reading: sizes scaled so body text reads comfortably.
+ */
+private class Look(val styles: DocStyles, val paper: Paper, val scale: Float, val labels: Map<Long, String>, val page: PageSetup? = null, val numbering: Numbering? = null) {
     private val bodySp = 17f * scale
+    val faithful get() = page != null
+    private val layouts = HashMap<Long, ParaLayout>()
+    fun layout(p: Para): ParaLayout = layouts.getOrPut(p.id) { styles.layout(p, numbering) }
 
     fun family(font: String?): FontFamily {
+        if (faithful) {
+            val f = font?.lowercase() ?: return FontFamily.SansSerif
+            return when {
+                listOf("mono", "courier", "consolas", "menlo", "code").any { it in f } -> FontFamily.Monospace
+                listOf("times", "cambria", "georgia", "garamond", "serif", "book", "palatino", "baskerville", "constantia", "minion", "literata").any { it in f } && "sans" !in f -> FontFamily.Serif
+                else -> FontFamily.SansSerif
+            }
+        }
         val f = font?.lowercase() ?: return Literata
         return when {
             listOf("mono", "courier", "consolas", "menlo", "code").any { it in f } -> Mono
@@ -205,10 +240,11 @@ private class Look(val styles: DocStyles, val paper: Paper, val scale: Float, va
         }
     }
 
-    fun sizeSp(pt: Float?) = bodySp * ((pt ?: styles.baseSize) / styles.baseSize).coerceIn(0.6f, 3.2f)
+    fun sizeSp(pt: Float?) = if (faithful) (pt ?: styles.baseSize) else bodySp * ((pt ?: styles.baseSize) / styles.baseSize).coerceIn(0.6f, 3.2f)
 
     fun colour(rgb: Int?): Color? {
         val c = Color(0xFF000000.toInt() or (rgb ?: return null))
+        if (faithful) return c
         // Dark text from the page would vanish on a dark screen.
         return if (paper.dark && c.luminance() < 0.25f) null else c
     }
@@ -235,7 +271,7 @@ private class Look(val styles: DocStyles, val paper: Paper, val scale: Float, va
             "darkGreen" -> Color(0xFF008000); "darkMagenta" -> Color(0xFF800080); "darkRed" -> Color(0xFF800000); "darkYellow" -> Color(0xFF808000)
             "darkGray" -> Color(0xFF808080); "lightGray" -> Color(0xFFC0C0C0); "black" -> Color.Black; else -> Color(0xFFFFFF00)
         }
-        return c.copy(alpha = if (paper.dark) 0.4f else 0.55f)
+        return c.copy(alpha = if (faithful) 1f else if (paper.dark) 0.4f else 0.55f)
     }
 
     /** The paragraph's text with its formatting; [offset] leaves room for the editor's sentinel. */
@@ -247,8 +283,9 @@ private class Look(val styles: DocStyles, val paper: Paper, val scale: Float, va
             if (r.isObject) continue
             addStyle(span(styles.effective(p, r)), start, length)
             if (r.linkTarget != null) {
-                addStyle(SpanStyle(color = paper.accent, textDecoration = TextDecoration.Underline), start, length)
-                if (links && !r.linkTarget.startsWith("#")) addLink(LinkAnnotation.Url(r.linkTarget, TextLinkStyles(SpanStyle(color = paper.accent))), start, length)
+                val linkColour = if (faithful) WORD_LINK else paper.accent
+                addStyle(SpanStyle(color = linkColour, textDecoration = TextDecoration.Underline), start, length)
+                if (links && !r.linkTarget.startsWith("#")) addLink(LinkAnnotation.Url(r.linkTarget, TextLinkStyles(SpanStyle(color = linkColour))), start, length)
             }
         }
         marks.forEach { m -> addStyle(SpanStyle(background = paper.accent.copy(alpha = 0.3f)), m.first + offset, m.last + 1 + offset) }
@@ -257,6 +294,32 @@ private class Look(val styles: DocStyles, val paper: Paper, val scale: Float, va
     fun textStyle(p: Para): TextStyle {
         val base = styles.paraRun(p.props.styleId)
         val heading = styles.headingLevel(p.props.styleId) != null
+        if (faithful) {
+            val l = layout(p)
+            val size = base.size ?: styles.baseSize
+            // Word's "single" line is about 1.17 times the font size for common fonts.
+            val single = 1.17f
+            val lineHeight = when {
+                l.lineExact != null -> l.lineExact.sp
+                l.lineAtLeast != null -> (maxOf(single * size, l.lineAtLeast) / size).em
+                else -> (single * (l.lineMultiple ?: 1f)).em
+            }
+            val indent = when {
+                labels.containsKey(p.id) -> null
+                l.firstLine > 0 -> TextIndent(firstLine = l.firstLine.sp)
+                l.firstLine < 0 -> TextIndent(firstLine = 0.sp, restLine = (-l.firstLine).sp)
+                else -> null
+            }
+            return TextStyle(
+                color = Color.Black,
+                fontFamily = family(base.font),
+                fontSize = size.sp,
+                lineHeight = lineHeight,
+                lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Proportional, LineHeightStyle.Trim.None),
+                textIndent = indent,
+                textAlign = when (styles.align(p)) { "center" -> TextAlign.Center; "right", "end" -> TextAlign.End; "both", "distribute" -> TextAlign.Justify; else -> TextAlign.Start },
+            )
+        }
         return TextStyle(
             color = paper.ink,
             fontFamily = family(base.font),
@@ -266,9 +329,9 @@ private class Look(val styles: DocStyles, val paper: Paper, val scale: Float, va
         )
     }
 
-    fun spaceAbove(p: Para): Dp = when (styles.headingLevel(p.props.styleId)) { null -> 0.dp; 0 -> 8.dp; 1 -> 22.dp; else -> 14.dp }
-    fun spaceBelow(p: Para): Dp = if (labels.containsKey(p.id)) 4.dp else 12.dp
-    fun indent(p: Para): Dp = if (labels.containsKey(p.id)) (styles.numbering(p)?.second ?: 0).coerceIn(0, 6).times(22).dp else 0.dp
+    fun spaceAbove(p: Para): Dp = if (faithful) layout(p).spaceBefore.dp else when (styles.headingLevel(p.props.styleId)) { null -> 0.dp; 0 -> 8.dp; 1 -> 22.dp; else -> 14.dp }
+    fun spaceBelow(p: Para): Dp = if (faithful) layout(p).spaceAfter.dp else if (labels.containsKey(p.id)) 4.dp else 12.dp
+    fun indent(p: Para): Dp = if (faithful) layout(p).let { (it.left + minOf(it.firstLine, 0f)).coerceAtLeast(0f).dp } else if (labels.containsKey(p.id)) (styles.numbering(p)?.second ?: 0).coerceIn(0, 6).times(22).dp else 0.dp
 }
 
 @Composable
@@ -284,6 +347,9 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
 
     var editing by remember { mutableStateOf(false) }
     var scale by remember { mutableFloatStateOf(1f) }
+    // Page view draws the document as it prints; reading view reflows it for the screen.
+    var pageView by rememberSaveable { mutableStateOf(true) }
+    var zoom by remember { mutableFloatStateOf(1f) }
     var menu by remember { mutableStateOf(false) }
     var finding by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -301,7 +367,17 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
 
     val body = remember(tick) { editor.body }
     val labels = remember(body) { doc.numbering.labels(body.paragraphs, doc.styles) }
-    val look = remember(labels, scale, paper) { Look(doc.styles, paper, scale, labels) }
+    val look = remember(labels, scale, paper, pageView) { Look(doc.styles, paper, scale, labels, if (pageView) doc.page else null, doc.numbering) }
+    // Blocks that begin a new sheet of paper in page view.
+    val pageStarts = remember(body) {
+        val starts = HashSet<Int>()
+        body.blocks.forEachIndexed { i, b ->
+            val prev = body.blocks.getOrNull(i - 1) as? Block.P
+            if (prev != null && (prev.para.runs.any(DocLayout::isPageBreak) || DocLayout.endsSection(prev.para))) starts += i
+            if (b is Block.P && i > 0 && doc.styles.layout(b.para).pageBreakBefore) starts += i
+        }
+        starts
+    }
     val words = remember(body) { body.paragraphs.sumOf { p -> p.text.split(Regex("\\s+")).count { w -> w.any { it.isLetterOrDigit() } } } }
     val matches = remember(body, query) {
         if (query.length < 2) emptyList() else body.paragraphs.flatMap { p ->
@@ -385,8 +461,18 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     if (!editing) DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; finding = true; chrome.show() })
                     DropdownMenuItem(text = { Text("Contents") }, onClick = { menu = false; contents = true })
-                    DropdownMenuItem(text = { Text("Larger text") }, onClick = { menu = false; scale = (scale + 0.12f).coerceAtMost(2f) })
-                    DropdownMenuItem(text = { Text("Smaller text") }, onClick = { menu = false; scale = (scale - 0.12f).coerceAtLeast(0.6f) })
+                    DropdownMenuItem(
+                        text = { Text(if (pageView) "Reading view" else "Page view") },
+                        leadingIcon = { Icon(if (pageView) Icons.AutoMirrored.Rounded.Notes else Icons.Rounded.Description, null) },
+                        onClick = { menu = false; pageView = !pageView; zoom = 1f },
+                    )
+                    if (pageView) {
+                        DropdownMenuItem(text = { Text("Zoom in") }, onClick = { menu = false; zoom = (zoom * 1.25f).coerceAtMost(4f) })
+                        DropdownMenuItem(text = { Text("Fit width") }, enabled = zoom != 1f, onClick = { menu = false; zoom = 1f })
+                    } else {
+                        DropdownMenuItem(text = { Text("Larger text") }, onClick = { menu = false; scale = (scale + 0.12f).coerceAtMost(2f) })
+                        DropdownMenuItem(text = { Text("Smaller text") }, onClick = { menu = false; scale = (scale - 0.12f).coerceAtLeast(0.6f) })
+                    }
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text(if (loaded.native) "Save a copy…" else "Save as Word document…") }, onClick = { menu = false; saveAs.launch("$baseName.docx") })
                     DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = { menu = false; Printing.printHtml(context, source.name, PrintHtml.document(source.name, editor.body, doc.styles, doc.numbering) { doc.bytes(it) }) })
@@ -400,31 +486,34 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
         Column(Modifier.fillMaxSize().imePadding()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                 val items = body.blocks
-                val content: @Composable () -> Unit = {
-                    LazyColumn(
-                        state = list,
-                        modifier = Modifier.widthIn(max = 720.dp).fillMaxSize().then(if (!editing) Modifier.clickable(interactionSource = null, indication = null) { chrome.toggle() } else Modifier),
-                        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = insets.calculateTopPadding() + 76.dp + if (finding) 56.dp else 0.dp, bottom = 120.dp),
-                    ) {
-                        itemsIndexed(items, key = { i, b -> if (b is Block.P) b.para.id else -i - 1L }) { _, b ->
-                            when (b) {
-                                is Block.P -> ParagraphItem(b.para, doc, look, editing, matches.filter { it.first == b.para.id }.map { it.second }, focused, caretTarget,
-                                    onFocus = { id -> focused = id; pending = null },
-                                    onSelection = { selection = it; pending = null },
-                                    onChange = { id, text, sel -> selection = sel; val target = editor.change(id, text, pending); tick = editor.version; if (target != null) caretTarget = target },
-                                    onBackspaceAtStart = { id -> val target = editor.backspaceAtStart(id); tick = editor.version; if (target != null) caretTarget = target },
-                                    onCaretPlaced = { caretTarget = null })
-                                is Block.T -> TableItem(b, look) { p ->
-                                    ParagraphItem(p, doc, look, editing, matches.filter { it.first == p.id }.map { it.second }, focused, caretTarget,
-                                        onFocus = { id -> focused = id; pending = null },
-                                        onSelection = { selection = it; pending = null },
-                                        onChange = { id, text, sel -> selection = sel; val target = editor.change(id, text, pending); tick = editor.version; if (target != null) caretTarget = target },
-                                        onBackspaceAtStart = { id -> val target = editor.backspaceAtStart(id); tick = editor.version; if (target != null) caretTarget = target },
-                                        onCaretPlaced = { caretTarget = null }, compact = true)
-                                }
-                            }
+                val blockContent: @Composable (Block) -> Unit = { b ->
+                    when (b) {
+                        is Block.P -> ParagraphItem(b.para, doc, look, editing, matches.filter { it.first == b.para.id }.map { it.second }, focused, caretTarget,
+                            onFocus = { id -> focused = id; pending = null },
+                            onSelection = { selection = it; pending = null },
+                            onChange = { id, text, sel -> selection = sel; val target = editor.change(id, text, pending); tick = editor.version; if (target != null) caretTarget = target },
+                            onBackspaceAtStart = { id -> val target = editor.backspaceAtStart(id); tick = editor.version; if (target != null) caretTarget = target },
+                            onCaretPlaced = { caretTarget = null })
+                        is Block.T -> TableItem(b, look) { p ->
+                            ParagraphItem(p, doc, look, editing, matches.filter { it.first == p.id }.map { it.second }, focused, caretTarget,
+                                onFocus = { id -> focused = id; pending = null },
+                                onSelection = { selection = it; pending = null },
+                                onChange = { id, text, sel -> selection = sel; val target = editor.change(id, text, pending); tick = editor.version; if (target != null) caretTarget = target },
+                                onBackspaceAtStart = { id -> val target = editor.backspaceAtStart(id); tick = editor.version; if (target != null) caretTarget = target },
+                                onCaretPlaced = { caretTarget = null }, compact = true)
                         }
                     }
+                }
+                val topPad = insets.calculateTopPadding() + 76.dp + if (finding) 56.dp else 0.dp
+                val content: @Composable () -> Unit = {
+                    val page = look.page
+                    if (page == null) LazyColumn(
+                        state = list,
+                        modifier = Modifier.widthIn(max = 720.dp).fillMaxSize().then(if (!editing) Modifier.clickable(interactionSource = null, indication = null) { chrome.toggle() } else Modifier),
+                        contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = topPad, bottom = 120.dp),
+                    ) {
+                        itemsIndexed(items, key = { i, b -> if (b is Block.P) b.para.id else -i - 1L }) { _, b -> blockContent(b) }
+                    } else PageColumn(page, items.size, pageStarts, zoom, { zoom = it }, list, topPad, editing, onTap = { chrome.toggle() }) { i -> blockContent(items[i]) }
                 }
                 if (editing) content() else SelectionContainer { content() }
                 if (finding) {
@@ -511,11 +600,19 @@ private fun ParagraphItem(
 ) {
     val label = look.labels[p.id]
     val visible = p.text.any { it != Para.OBJ }
-    Column(Modifier.fillMaxWidth().padding(top = if (compact) 0.dp else look.spaceAbove(p), bottom = if (compact) 4.dp else look.spaceBelow(p))) {
+    val layout = if (look.faithful) look.layout(p) else null
+    val outer = if (layout == null) Modifier.fillMaxWidth().padding(top = if (compact) 0.dp else look.spaceAbove(p), bottom = if (compact) 4.dp else look.spaceBelow(p))
+    else Modifier.fillMaxWidth().padding(top = look.spaceAbove(p)).then(layout.shading?.let { Modifier.background(Color(0xFF000000.toInt() or it)) } ?: Modifier)
+        .padding(bottom = look.spaceBelow(p), end = layout.right.coerceAtLeast(0f).dp)
+    Column(outer) {
         p.images.forEach { DocImage(doc, it, look) }
         if (visible || editing || p.images.isEmpty()) {
             Row(Modifier.padding(start = look.indent(p))) {
-                if (label != null) Text(label, style = look.textStyle(p).copy(textAlign = TextAlign.End), modifier = Modifier.width((28 + 8 * label.length.coerceAtMost(5)).dp.coerceAtMost(64.dp)).padding(end = 8.dp))
+                if (label != null) {
+                    // On the page a list label sits in the hanging indent, as in Word.
+                    val labelWidth = if (layout != null && layout.firstLine < 0) (-layout.firstLine).dp else (28 + 8 * label.length.coerceAtMost(5)).dp.coerceAtMost(64.dp)
+                    Text(label, style = look.textStyle(p).copy(textAlign = if (layout != null) TextAlign.Start else TextAlign.End, textIndent = null), maxLines = 1, modifier = Modifier.width(labelWidth).padding(end = if (layout != null) 0.dp else 8.dp))
+                }
                 if (editing) ParaField(p, look, focused == p.id, caretTarget, onFocus, onSelection, onChange, onBackspaceAtStart, onCaretPlaced)
                 else Text(look.annotated(p, marks = marks, links = true), style = look.textStyle(p), modifier = Modifier.weight(1f))
             }
@@ -588,7 +685,7 @@ private fun DocImage(doc: DocxDoc, run: Run, look: Look) {
             }.getOrNull()
         }
     }
-    val wantedWidth = run.imageSize?.first?.let { (it * 1.33f * look.scale).dp }
+    val wantedWidth = run.imageSize?.first?.let { if (look.faithful) it.dp else (it * 1.33f * look.scale).dp }
     BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
         val width = wantedWidth?.coerceAtMost(maxWidth) ?: maxWidth
         val ratio = bitmap?.let { it.width.toFloat() / it.height } ?: run.imageSize?.let { it.first / it.second } ?: 1.5f
@@ -600,6 +697,7 @@ private fun DocImage(doc: DocxDoc, run: Run, look: Look) {
 
 @Composable
 private fun TableItem(t: Block.T, look: Look, cell: @Composable (Para) -> Unit) {
+    if (look.faithful) { PageTable(t, look, cell); return }
     val paper = look.paper
     val cols = t.rows.maxOfOrNull { it.size } ?: 0
     // Twips to dp, generous enough that narrow phones scroll sideways rather than squash.
@@ -706,3 +804,97 @@ private fun DocSwatches(colours: List<Int>, onPick: (Int?) -> Unit) {
     }
 }
 
+
+/** A table as Word draws it: column widths in points, borders only when the table has them, cell colours. */
+@Composable
+private fun PageTable(t: Block.T, look: Look, cell: @Composable (Para) -> Unit) {
+    val bordered = remember(t) { DocLayout.bordered(t, look.styles) }
+    val line = if (bordered) Color.Black else Color.Transparent
+    val cols = t.widths.ifEmpty { List(t.rows.maxOfOrNull { it.size } ?: 1) { 0 } }
+    val textWidth = look.page?.textWidth ?: 468f
+    val total = cols.sum().takeIf { it > 0 }?.div(20f)
+    // Columns keep their proportions; a table wider than the text area is fitted to it.
+    val fit = if (total != null && total > textWidth) textWidth / total else 1f
+    fun width(from: Int, span: Int) = (from until (from + span).coerceAtMost(cols.size)).sumOf { cols[it] }.let { tw ->
+        if (tw > 0) (tw / 20f * fit).dp else (textWidth / cols.size * span).dp
+    }
+    Column(Modifier.padding(vertical = 2.dp).border(0.5.dp, line)) {
+        t.rows.forEach { row ->
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                var col = 0
+                row.forEach { c ->
+                    val span = DocLayout.span(c)
+                    val fill = DocLayout.cellFill(c)
+                    Column(
+                        Modifier.width(width(col, span)).fillMaxHeight().border(0.5.dp, line)
+                            .then(fill?.let { Modifier.background(Color(0xFF000000.toInt() or it)) } ?: Modifier)
+                            .padding(horizontal = 5.4.dp, vertical = 1.dp),
+                    ) { c.paras.forEach { cell(it) } }
+                    col += span
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The page view: sheets of paper on a grey desk, as wide as the screen (pinch to zoom in and pan),
+ * with the document's margins, and a new sheet wherever the document breaks the page. Inside, one
+ * point of the document is drawn as one scaled unit, so sizes match the printed page.
+ */
+@Composable
+private fun PageColumn(
+    page: PageSetup, count: Int, pageStarts: Set<Int>, zoom: Float, onZoom: (Float) -> Unit, list: androidx.compose.foundation.lazy.LazyListState,
+    topPad: Dp, editing: Boolean, onTap: () -> Unit, block: @Composable (Int) -> Unit,
+) {
+    val desk = Color(0xFF8A8D93).copy(alpha = 0.35f)
+    val zoomNow by androidx.compose.runtime.rememberUpdatedState(zoom)
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .pointerInput(Unit) {
+                // Two fingers zoom; one finger is left alone so the pages scroll as usual.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var current = zoomNow
+                    do {
+                        val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                        if (event.changes.count { it.pressed } >= 2) {
+                            current = (current * event.calculateZoom()).coerceIn(1f, 4f)
+                            onZoom(current)
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            },
+    ) {
+        val sheet = (maxWidth - 16.dp) * zoom
+        val density = LocalDensity.current
+        // Document points to screen pixels.
+        val pt = remember(sheet, density) { Density(density.density * (sheet.value / page.width), 1f) }
+        val hScroll = rememberScrollState()
+        Box(Modifier.fillMaxSize().then(if (zoom > 1f) Modifier.horizontalScroll(hScroll) else Modifier)) {
+            LazyColumn(
+                state = list,
+                modifier = Modifier.width(sheet + 16.dp).fillMaxHeight().then(if (!editing) Modifier.clickable(interactionSource = null, indication = null, onClick = onTap) else Modifier),
+                contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = topPad, bottom = 120.dp),
+            ) {
+                items(count, key = { it }) { i ->
+                    val starts = i == 0 || i in pageStarts
+                    val ends = i == count - 1 || (i + 1) in pageStarts
+                    Column(Modifier.fillMaxWidth()) {
+                        if (starts && i > 0) Spacer(Modifier.height(12.dp))
+                        CompositionLocalProvider(LocalDensity provides pt) {
+                            Column(
+                                Modifier.fillMaxWidth().background(Color.White)
+                                    .padding(start = page.left.dp, end = page.right.dp, top = if (starts) page.top.dp else 0.dp, bottom = if (ends) page.bottom.dp else 0.dp),
+                            ) {
+                                CompositionLocalProvider(LocalContentColor provides Color.Black) { block(i) }
+                            }
+                        }
+                        if (ends) Box(Modifier.fillMaxWidth().height(1.dp).background(desk))
+                    }
+                }
+            }
+        }
+    }
+}

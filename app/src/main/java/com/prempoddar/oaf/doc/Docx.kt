@@ -23,9 +23,29 @@ private fun Element.w(name: String) = getAttributeNS(W, name).takeIf { hasAttrib
 private fun Element.flag(): Boolean = w("val")?.let { it != "0" && it != "false" && it != "off" && it != "none" } ?: true
 
 /** A paragraph or character style from styles.xml. */
-class StyleDef(val id: String, val name: String, val type: String, val basedOn: String?, val run: RunStyle, val align: String?, val numId: String?, val level: Int?, val outline: Int?)
+class StyleDef(
+    val id: String, val name: String, val type: String, val basedOn: String?, val run: RunStyle, val align: String?, val numId: String?, val level: Int?, val outline: Int?,
+    /** Paragraph properties (spacing, indents…) and, for table styles, table properties. */
+    val pPr: Element? = null,
+    val tblPr: Element? = null,
+)
 
-class DocStyles(private val defs: Map<String, StyleDef>, val defaults: RunStyle, private val defaultPara: String?) {
+class DocStyles(private val defs: Map<String, StyleDef>, val defaults: RunStyle, private val defaultPara: String?, private val defaultPPr: Element? = null) {
+    /** Spacing, indents and shading for [p], from the document defaults, its style chain and itself. */
+    fun layout(p: Para, numbering: Numbering? = null): ParaLayout {
+        val sources = ArrayList<Element>()
+        defaultPPr?.let { sources += it }
+        chain(p.props.styleId ?: defaultPara).forEach { s -> s.pPr?.let { sources += it } }
+        // A list level's indents sit between the style and the paragraph's own.
+        val list = numbering(p)
+        if (list != null && numbering != null) numbering.level(list.first, list.second)?.pPr?.let { sources += it }
+        p.pPr?.let { sources += it }
+        return ParaLayout.resolve(sources)
+    }
+
+    /** Whether table style [id] (or one it's based on) draws borders. */
+    fun tableHasBorders(id: String?): Boolean = id != null && chain(id).any { it.tblPr?.kid("tblBorders") != null } || id.equals("TableGrid", true)
+
     /** The body text size, which reading sizes are scaled from. */
     val baseSize get() = defaults.size ?: 11f
 
@@ -97,9 +117,10 @@ class DocStyles(private val defs: Map<String, StyleDef>, val defaults: RunStyle,
                     s.kid("rPr")?.let { parseRun(it) } ?: RunStyle(),
                     pPr?.kid("jc")?.w("val"), numPr?.kid("numId")?.w("val"), numPr?.kid("ilvl")?.w("val")?.toIntOrNull(),
                     pPr?.kid("outlineLvl")?.w("val")?.toIntOrNull(),
+                    pPr, s.kid("tblPr"),
                 )
             }
-            return DocStyles(defs, RunStyle(size = 10f) under defaults, defaultPara)
+            return DocStyles(defs, RunStyle(size = 10f) under defaults, defaultPara, root.kid("docDefaults")?.kid("pPrDefault")?.kid("pPr"))
         }
 
         fun parseRun(rPr: Element): RunStyle {
@@ -120,7 +141,7 @@ class DocStyles(private val defs: Map<String, StyleDef>, val defaults: RunStyle,
 
 /** How lists are numbered, from numbering.xml. */
 class Numbering(private val nums: Map<String, Map<Int, Level>>) {
-    data class Level(val format: String, val text: String, val start: Int)
+    data class Level(val format: String, val text: String, val start: Int, val pPr: Element? = null)
 
     fun level(numId: String, lvl: Int): Level? = when (numId) {
         BULLET -> Level("bullet", listOf("•", "◦", "▪")[lvl % 3], 1)
@@ -189,7 +210,7 @@ class Numbering(private val nums: Map<String, Map<Int, Level>>) {
             if (doc == null) return Numbering(emptyMap())
             val abstract = doc.documentElement.kids("abstractNum").associate { a ->
                 a.w("abstractNumId").orEmpty() to a.kids("lvl").associate { l ->
-                    (l.w("ilvl")?.toIntOrNull() ?: 0) to Level(l.kid("numFmt")?.w("val") ?: "decimal", l.kid("lvlText")?.w("val") ?: "", l.kid("start")?.w("val")?.toIntOrNull() ?: 1)
+                    (l.w("ilvl")?.toIntOrNull() ?: 0) to Level(l.kid("numFmt")?.w("val") ?: "decimal", l.kid("lvlText")?.w("val") ?: "", l.kid("start")?.w("val")?.toIntOrNull() ?: 1, l.kid("pPr"))
                 }
             }
             val nums = doc.documentElement.kids("num").associate { n ->
@@ -217,6 +238,9 @@ class DocxDoc internal constructor(
     /** Paragraph elements OAF knows about: those read and those it made. */
     internal val known: MutableSet<Element>,
 ) {
+    /** Paper size and margins, from the body's last section. */
+    val page: PageSetup by lazy { PageSetup.of(bodyEl.kids("sectPr").lastOrNull()) }
+
     internal val created = HashMap<Long, Element>()
     internal val written = IdentityHashMap<Element, Para>()
     internal val markerIds = HashMap<String, String>()

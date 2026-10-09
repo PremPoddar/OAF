@@ -93,7 +93,10 @@ fun SlidesScreen(source: DocSource, onBack: () -> Unit) {
             }
         }
     }
-    DisposableEffect(deck) { onDispose { deck?.getOrNull()?.close() } }
+    // Close the deck this effect was started for (not whatever has loaded since), so pictures
+    // can still be read while it's on screen.
+    val loadedDeck = deck
+    DisposableEffect(loadedDeck) { onDispose { loadedDeck?.getOrNull()?.close() } }
     var notes by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var presenting by remember { mutableStateOf<Int?>(null) }
@@ -158,7 +161,8 @@ private fun Presenter(deck: Deck, start: Int, onExit: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(pager, Modifier.fillMaxSize()) { i ->
             Box(Modifier.fillMaxSize().clickable { scope.launch { if (i < deck.slides.lastIndex) pager.animateScrollToPage(i + 1) else onExit() } }, contentAlignment = Alignment.Center) {
-                SlideView(deck, deck.slides[i], Modifier.fillMaxSize())
+                // Fits whole inside the screen whichever way round it is, never cropped.
+                SlideView(deck, deck.slides[i], Modifier, fit = true)
             }
         }
         Text("${pager.currentPage + 1} / ${deck.slides.size}", color = Color.White.copy(alpha = 0.5f), style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp))
@@ -166,11 +170,11 @@ private fun Presenter(deck: Deck, start: Int, onExit: () -> Unit) {
 }
 
 @Composable
-private fun SlideView(deck: Deck, slide: Slide, modifier: Modifier) {
+private fun SlideView(deck: Deck, slide: Slide, modifier: Modifier, fit: Boolean = false) {
     val pictures by produceState<Map<String, Bitmap>>(emptyMap(), slide) {
         value = withContext(Dispatchers.IO) {
             // A picture that can't be read (closed file, odd format, too big) is just left out.
-            runCatching { slide.shapes.filterIsInstance<SlideShape.Picture>().map { it.path }.distinct().mapNotNull { path ->
+            runCatching { (slide.shapes.filterIsInstance<SlideShape.Picture>().map { it.path } + listOfNotNull(slide.backgroundImage)).distinct().mapNotNull { path ->
                 val bytes = deck.image(path) ?: return@mapNotNull null
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -183,14 +187,18 @@ private fun SlideView(deck: Deck, slide: Slide, modifier: Modifier) {
     val ratio = (deck.width / deck.height).takeIf { it.isFinite() && it > 0f } ?: (4f / 3f)
     Canvas(modifier.aspectRatio(ratio, matchHeightConstraintsFirst = false)) {
         val s = size.width / deck.width
-        drawIntoCanvas { c -> drawSlide(c.nativeCanvas, slide, s, pictures) }
+        drawIntoCanvas { c -> drawSlide(c.nativeCanvas, slide, s, pictures, size.width, size.height) }
     }
 }
 
 private val sans = Typeface.create("sans-serif", Typeface.NORMAL)
 
-private fun drawSlide(canvas: android.graphics.Canvas, slide: Slide, s: Float, pictures: Map<String, Bitmap>) {
-    canvas.drawColor(0xFF000000.toInt() or (slide.background ?: 0xFFFFFF))
+private fun drawSlide(canvas: android.graphics.Canvas, slide: Slide, s: Float, pictures: Map<String, Bitmap>, width: Float, height: Float) {
+    canvas.drawRect(0f, 0f, width, height, Paint().apply { color = 0xFF000000.toInt() or (slide.background ?: 0xFFFFFF) })
+    // A background picture fills the slide, cropped to its shape like PowerPoint's "stretch".
+    slide.backgroundImage?.let { pictures[it] }?.let { b ->
+        canvas.drawBitmap(b, null, android.graphics.RectF(0f, 0f, width, height), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+    }
     val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
@@ -205,7 +213,13 @@ private fun drawShape(canvas: android.graphics.Canvas, shape: SlideShape, s: Flo
     run {
         val r = RectF(shape.x * s, shape.y * s, (shape.x + shape.w) * s, (shape.y + shape.h) * s)
         when (shape) {
-            is SlideShape.Picture -> pictures[shape.path]?.let { canvas.drawBitmap(it, null, r, bitmapPaint) }
+            is SlideShape.Picture -> pictures[shape.path]?.let { b ->
+                val c = shape.crop
+                val src = if (c == null) null else android.graphics.Rect(
+                    (b.width * c[0]).toInt(), (b.height * c[1]).toInt(), (b.width * (1 - c[2])).toInt(), (b.height * (1 - c[3])).toInt(),
+                ).takeIf { it.width() > 0 && it.height() > 0 }
+                canvas.drawBitmap(b, src, r, bitmapPaint)
+            }
             is SlideShape.Text -> {
                 canvas.save()
                 if (shape.rotation != 0f) canvas.rotate(shape.rotation, r.centerX(), r.centerY())

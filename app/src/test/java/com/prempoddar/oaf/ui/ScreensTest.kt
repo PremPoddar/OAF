@@ -150,6 +150,7 @@ class ScreensTest {
     private fun openDeck(f: File) = com.prempoddar.oaf.io.DocSource.fromFile(f).detect(ApplicationProvider.getApplicationContext())
 
     @Test fun slidesPptx() = fixture("decks/sample.pptx").let { f -> shoot("slides-pptx", light) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
+    @Test fun slidesStyled() = fixture("decks/styled.pptx").let { f -> shoot("slides-styled", dark) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
     @Test fun slidesPpt() = samplePpt().let { f -> shoot("slides-ppt", dark) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
 
     @Config(qualifiers = "w891dp-h411dp-land-xxhdpi")

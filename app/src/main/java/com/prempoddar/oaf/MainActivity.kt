@@ -1,5 +1,6 @@
 package com.prempoddar.oaf
 
+import androidx.lifecycle.lifecycleScope
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -145,6 +146,11 @@ class MainActivity : ComponentActivity() {
             else -> null
         } ?: return
         openedFromOutside = true
-        incoming.value = DocSource.fromUri(this, uri, intent.type)
+        // Read now, while the other app's permission is fresh; see DocSource.received.
+        val type = intent.type
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val source = DocSource.received(this@MainActivity, uri, type)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { incoming.value = source }
+        }
     }
 }

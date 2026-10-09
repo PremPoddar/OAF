@@ -43,6 +43,22 @@ object Installer {
         }
     }
 
+    /**
+     * A single APK goes to Android's own installer screen, which handles permission and errors
+     * itself; bundles need an install session ([install]).
+     */
+    fun openInstaller(context: Context, apk: File) {
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", apk)
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        // OAF opens any file too, so name the system installer rather than offer a choice.
+        @Suppress("DEPRECATION")
+        context.packageManager.queryIntentActivities(intent, 0)
+            .firstOrNull { it.activityInfo.packageName != context.packageName }
+            ?.let { intent.setClassName(it.activityInfo.packageName, it.activityInfo.name) }
+        context.startActivity(intent)
+    }
+
     /** Starts installing; the result arrives in [Result]. Run off the main thread. */
     fun install(context: Context, file: File) {
         val installer = context.packageManager.packageInstaller

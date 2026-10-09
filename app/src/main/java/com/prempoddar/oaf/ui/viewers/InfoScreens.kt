@@ -252,6 +252,16 @@ private fun InstallButton(source: DocSource, a: ApkInfo) {
     com.prempoddar.oaf.ui.design.BigButton(
         if (working) "Preparing…" else label,
         onClick = {
+            val bundle = source.file?.let(Installer::isBundle) ?: (source.name.substringAfterLast('.').lowercase() in Installer.BUNDLES)
+            if (!bundle) {
+                working = true
+                scope.launch {
+                    val error = withContext(Dispatchers.IO) { runCatching { source.local(context) } }.fold({ f -> runCatching { Installer.openInstaller(context, f) }.exceptionOrNull() }, { it })
+                    working = false
+                    error?.let { android.widget.Toast.makeText(context, it.message ?: "Couldn't install this app", android.widget.Toast.LENGTH_LONG).show() }
+                }
+                return@BigButton
+            }
             if (!allowed) { Installer.openPermission(context); return@BigButton }
             working = true
             scope.launch {
@@ -263,7 +273,7 @@ private fun InstallButton(source: DocSource, a: ApkInfo) {
         modifier = Modifier.fillMaxWidth(),
         enabled = !working,
     )
-    if (!allowed) Text(
+    if (!allowed && (source.name.substringAfterLast('.').lowercase() in Installer.BUNDLES)) Text(
         "Android will ask you to let OAF install apps the first time.",
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp),
     )

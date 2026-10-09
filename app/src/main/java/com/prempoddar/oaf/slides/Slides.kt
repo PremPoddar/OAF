@@ -16,7 +16,7 @@ class Deck(val width: Float, val height: Float, val slides: List<Slide>, val ima
     override fun close() = onClose()
 }
 
-class Slide(val background: Int?, val shapes: List<SlideShape>, val notes: String?) {
+class Slide(val background: Int?, val shapes: List<SlideShape>, val notes: String?, val backgroundImage: String? = null) {
     val title: String? get() = shapes.filterIsInstance<SlideShape.Text>().firstOrNull { it.isTitle }?.plainText?.takeIf { it.isNotBlank() }
 }
 
@@ -39,7 +39,11 @@ sealed interface SlideShape {
         val plainText get() = paragraphs.joinToString("\n") { p -> p.runs.joinToString("") { it.text } }
     }
 
-    data class Picture(override val x: Float, override val y: Float, override val w: Float, override val h: Float, val path: String) : SlideShape
+    data class Picture(
+        override val x: Float, override val y: Float, override val w: Float, override val h: Float, val path: String,
+        /** The part of the picture shown, as fractions cut from each side (left, top, right, bottom). */
+        val crop: FloatArray? = null,
+    ) : SlideShape
     data class Table(override val x: Float, override val y: Float, override val w: Float, override val h: Float, val columns: List<Float>, val rows: List<List<List<SPara>>>) : SlideShape
 }
 
@@ -57,7 +61,45 @@ object Slides {
         /** Placeholder positions and default text sizes from the layout and master, by "type:idx". */
         val placeholders: Map<String, Pair<FloatArray?, Float?>>,
         val titleSize: Float, val bodySizes: List<Float>, val otherSize: Float,
+        /** The master's text styles: "title", "body" and "other", nine levels each. */
+        val masterStyles: Map<String, List<LStyle>> = emptyMap(),
+        /** Placeholder text styles from the master and layout, by "type:idx". */
+        val phStyles: Map<String, List<LStyle>> = emptyMap(),
     )
+
+    /** Text formatting for one outline level; null means "not set here". A bullet of "" means none. */
+    private data class LStyle(
+        val size: Float? = null, val bold: Boolean? = null, val italic: Boolean? = null, val color: Int? = null,
+        val align: String? = null, val bullet: String? = null,
+    ) {
+        infix fun over(base: LStyle) = LStyle(size ?: base.size, bold ?: base.bold, italic ?: base.italic, color ?: base.color, align ?: base.align, bullet ?: base.bullet)
+    }
+
+    private fun stack(top: List<LStyle>?, base: List<LStyle>?): List<LStyle> =
+        (0 until 9).map { i -> (top?.getOrNull(i) ?: LStyle()) over (base?.getOrNull(i) ?: LStyle()) }
+
+    private fun flag(e: Element?, name: String): Boolean? = e?.getAttribute(name)?.takeIf { it.isNotEmpty() }?.let { it == "1" || it == "true" }
+
+    /** Symbol-font bullets live in the private-use area; they're shown as a plain dot. */
+    private fun bulletChar(c: String) = if (c.isEmpty() || c[0].code in 0xF000..0xF0FF) "\u2022" else c
+
+    private fun lvl(p: Element, theme: Theme): LStyle {
+        val d = p.kid("defRPr")
+        return LStyle(
+            d?.getAttribute("sz")?.toFloatOrNull()?.div(100), flag(d, "b"), flag(d, "i"),
+            d?.kid("solidFill")?.let { colorOf(it, theme) },
+            p.getAttribute("algn").ifEmpty { null },
+            when {
+                p.kid("buNone") != null -> ""
+                p.kid("buChar") != null -> bulletChar(p.kid("buChar")!!.getAttribute("char"))
+                p.kid("buAutoNum") != null -> "#"
+                else -> null
+            },
+        )
+    }
+
+    /** Nine levels from a list-style element (lstStyle, titleStyle, bodyStyle…). */
+    private fun levels(list: Element?, theme: Theme): List<LStyle>? = list?.let { l -> (1..9).map { n -> l.kid("lvl${n}pPr")?.let { lvl(it, theme) } ?: LStyle() } }
 
     fun pptx(file: File): Deck {
         val zip = ZipFile(file)
@@ -86,7 +128,7 @@ object Slides {
                 masters.getOrPut(mp) {
                     val m = part(mp)!!
                     val t = m.rels.values.firstOrNull { it.contains("theme") }?.let { part(it) }
-                    m to Theme(themeColors(t?.root))
+                    m to Theme(themeColors(t?.root, m.root.kid("clrMap")))
                 }
             } ?: (null to Theme(emptyMap()))
             val ph = HashMap<String, Pair<FloatArray?, Float?>>()
@@ -101,7 +143,20 @@ object Slides {
             }
             val tx = master?.root?.kid("txStyles")
             fun lvl(style: String, n: Int) = tx?.kid(style)?.kid("lvl${n}pPr")?.kid("defRPr")?.getAttribute("sz")?.toFloatOrNull()?.div(100)
-            val ctx = Context(theme, ph, lvl("titleStyle", 1) ?: 44f, (1..5).map { lvl("bodyStyle", it) ?: (28f - (it - 1) * 4f).coerceAtLeast(14f) }, lvl("otherStyle", 1) ?: 18f)
+            val masterStyles = mapOf(
+                "title" to (levels(tx?.kid("titleStyle"), theme) ?: emptyList()),
+                "body" to (levels(tx?.kid("bodyStyle"), theme) ?: emptyList()),
+                "other" to (levels(tx?.kid("otherStyle"), theme) ?: emptyList()),
+            )
+            val phStyles = HashMap<String, List<LStyle>>()
+            listOfNotNull(master, layout).forEach { p ->
+                p.root.descendants("sp").forEach { sp ->
+                    val k = placeholderKey(sp) ?: return@forEach
+                    val before = phStyles[k] ?: phStyles.entries.firstOrNull { it.key.substringBefore(':') == k.substringBefore(':') }?.value
+                    phStyles[k] = stack(levels(sp.kid("txBody")?.kid("lstStyle"), theme), before)
+                }
+            }
+            val ctx = Context(theme, ph, lvl("titleStyle", 1) ?: 44f, (1..5).map { lvl("bodyStyle", it) ?: (28f - (it - 1) * 4f).coerceAtLeast(14f) }, lvl("otherStyle", 1) ?: 18f, masterStyles, phStyles)
 
             val shapes = ArrayList<SlideShape>()
             // Decorations from the master and layout sit underneath, unless the slide hides them.
@@ -109,10 +164,13 @@ object Slides {
                 listOfNotNull(master, layout).forEach { p -> p.root.kid("cSld")?.kid("spTree")?.let { tree(it, p, ctx, shapes, skipPlaceholders = true) } }
             }
             slide.root.kid("cSld")?.kid("spTree")?.let { tree(it, slide, ctx, shapes, skipPlaceholders = false) }
-            val bg = listOfNotNull(slide, layout, master).firstNotNullOfOrNull { p -> p.root.kid("cSld")?.kid("bg")?.let { bg -> fillOf(bg.kid("bgPr"), theme) ?: bg.kid("bgRef")?.let { colorOf(it, theme) } } }
+            val bgOwner = listOfNotNull(slide, layout, master).firstOrNull { it.root.kid("cSld")?.kid("bg") != null }
+            val bgEl = bgOwner?.root?.kid("cSld")?.kid("bg")
+            val bg = bgEl?.let { b -> fillOf(b.kid("bgPr"), theme) ?: b.kid("bgRef")?.let { colorOf(it, theme) } }
+            val bgImage = bgEl?.kid("bgPr")?.kid("blipFill")?.descendants("blip")?.firstOrNull()?.getAttributeNS(R, "embed")?.let { bgOwner.rels[it] }
             val notes = slide.rels.values.firstOrNull { it.contains("notesSlide") }?.let { part(it) }?.root?.descendants("sp")
                 ?.firstOrNull { placeholderKey(it)?.startsWith("body") == true }?.let { sp -> paragraphs(sp, ctx, 12f).joinToString("\n") { p -> p.runs.joinToString("") { it.text } } }
-            Slide(bg, shapes, notes?.takeIf { it.isNotBlank() })
+            Slide(bg, shapes, notes?.takeIf { it.isNotBlank() }, bgImage)
         }
         return Deck(width, height, slides, { path -> bytes(path) }, zip::close)
     }
@@ -124,6 +182,15 @@ object Slides {
         val stack = ArrayList(if (dir.isEmpty()) emptyList() else dir.split('/'))
         target.split('/').forEach { seg -> when (seg) { ".." -> if (stack.isNotEmpty()) stack.removeAt(stack.size - 1); ".", "" -> Unit; else -> stack += seg } }
         return stack.joinToString("/")
+    }
+
+    /** Theme colours, with the master's map of text and background names (dark designs swap them). */
+    private fun themeColors(theme: Element?, clrMap: Element?): Map<String, Int> {
+        val base = themeColors(theme).toMutableMap()
+        clrMap?.let { m ->
+            listOf("tx1", "tx2", "bg1", "bg2").forEach { k -> m.getAttribute(k).takeIf { it.isNotEmpty() }?.let { target -> base[target]?.let { base[k] = it } } }
+        }
+        return base
     }
 
     private fun themeColors(theme: Element?): Map<String, Int> {
@@ -213,7 +280,15 @@ object Slides {
                 val fill = if (spPr?.kid("noFill") != null) null else fillOf(spPr, ctx.theme) ?: style?.kid("fillRef")?.takeIf { (it.getAttribute("idx").toIntOrNull() ?: 0) > 0 }?.let { colorOf(it, ctx.theme) }
                 val ln = spPr?.kid("ln")
                 val line = if (ln?.kid("noFill") != null) null else ln?.kid("solidFill")?.let { colorOf(it, ctx.theme) } ?: style?.kid("lnRef")?.takeIf { (it.getAttribute("idx").toIntOrNull() ?: 0) > 0 }?.let { colorOf(it, ctx.theme) }
-                val paras = paragraphs(el, ctx, defaultSize, if (key == null || isTitle || inherited?.second != null) null else ctx.bodySizes, style?.kid("fontRef")?.let { colorOf(it, ctx.theme) })
+                // A shape filled with a picture: the picture first, any text on top.
+                spPr?.kid("blipFill")?.descendants("blip")?.firstOrNull()?.getAttributeNS(R, "embed")?.let { part.rels[it] }?.let {
+                    out += SlideShape.Picture(box[0], box[1], box[2], box[3], it)
+                }
+                val base = when { isTitle -> ctx.masterStyles["title"]; key != null -> ctx.masterStyles["body"]; else -> ctx.masterStyles["other"] }
+                val fontRef = style?.kid("fontRef")?.let { colorOf(it, ctx.theme) }?.let { c -> List(9) { LStyle(color = c) } }
+                val inheritedStyles = key?.let { k -> ctx.phStyles[k] ?: ctx.phStyles.entries.firstOrNull { it.key.substringBefore(':') == k.substringBefore(':') }?.value }
+                val styles = stack(levels(el.kid("txBody")?.kid("lstStyle"), ctx.theme), stack(inheritedStyles, stack(fontRef, base)))
+                val paras = paragraphs(el, ctx, defaultSize, if (key == null || isTitle || inherited?.second != null) null else ctx.bodySizes, null, styles)
                 out += SlideShape.Text(
                     box[0], box[1], box[2], box[3], paras, fill, line, (ln?.getAttribute("w")?.toFloatOrNull() ?: 9525f) / EMU,
                     spPr?.kid("prstGeom")?.getAttribute("prst")?.ifEmpty { null } ?: "rect",
@@ -222,9 +297,15 @@ object Slides {
                 )
             }
             "pic" -> {
-                val box = map(xfrm(el.kid("spPr")) ?: continue)
+                // Pictures in placeholders take their place from the layout.
+                val key = placeholderKey(el)
+                if (key != null && skipPlaceholders) continue
+                val inheritedBox = key?.let { k -> ctx.placeholders[k]?.first ?: ctx.placeholders.entries.firstOrNull { it.key.substringBefore(':') == k.substringBefore(':') }?.value?.first }
+                val box = map(xfrm(el.kid("spPr")) ?: inheritedBox ?: continue)
                 val embed = el.descendants("blip").firstOrNull()?.getAttributeNS(R, "embed") ?: continue
-                part.rels[embed]?.let { out += SlideShape.Picture(box[0], box[1], box[2], box[3], it) }
+                val src = el.descendants("srcRect").firstOrNull()
+                val crop = src?.let { r -> arrayOf("l", "t", "r", "b").let { k -> FloatArray(4) { i -> (r.getAttribute(k[i]).toFloatOrNull() ?: 0f) / 100000f } } }?.takeIf { c -> c.any { it != 0f } }
+                part.rels[embed]?.let { out += SlideShape.Picture(box[0], box[1], box[2], box[3], it, crop) }
             }
             "grpSp" -> {
                 val x = el.kid("grpSpPr")?.kid("xfrm")
@@ -253,13 +334,15 @@ object Slides {
         }
     }
 
-    private fun paragraphs(holder: Element, ctx: Context, defaultSize: Float, levelSizes: List<Float>? = null, fontColor: Int? = null): List<SPara> {
+    private fun paragraphs(holder: Element, ctx: Context, defaultSize: Float, levelSizes: List<Float>? = null, fontColor: Int? = null, styles: List<LStyle>? = null): List<SPara> {
         val body = holder.kid("txBody") ?: holder.kid("txBody") ?: holder.descendants("txBody").firstOrNull() ?: return emptyList()
         var number = 0
         return body.kids("p").map { p ->
             val pPr = p.kid("pPr")
             val level = pPr?.getAttribute("lvl")?.toIntOrNull() ?: 0
-            val size = levelSizes?.getOrNull(level) ?: defaultSize
+            val st = (pPr?.let { lvl(it, ctx.theme) } ?: LStyle()) over (styles?.getOrNull(level) ?: LStyle())
+            val size = st.size ?: levelSizes?.getOrNull(level) ?: defaultSize
+            val baseColor = st.color ?: fontColor
             val runs = p.kids().mapNotNull { r ->
                 when (r.localName) {
                     "r", "fld" -> {
@@ -267,22 +350,22 @@ object Slides {
                         SRun(
                             r.kid("t")?.textContent.orEmpty(),
                             rPr?.getAttribute("sz")?.toFloatOrNull()?.div(100) ?: size,
-                            rPr?.getAttribute("b") == "1", rPr?.getAttribute("i") == "1",
+                            flag(rPr, "b") ?: st.bold ?: false, flag(rPr, "i") ?: st.italic ?: false,
                             rPr?.getAttribute("u")?.let { it.isNotEmpty() && it != "none" } == true,
-                            rPr?.kid("solidFill")?.let { colorOf(it, ctx.theme) } ?: fontColor,
+                            rPr?.kid("solidFill")?.let { colorOf(it, ctx.theme) } ?: baseColor,
                         )
                     }
                     "br" -> SRun("\n", size)
                     else -> null
                 }
             }
-            val bullet = when {
-                pPr?.kid("buNone") != null -> null
-                pPr?.kid("buChar") != null -> pPr.kid("buChar")!!.getAttribute("char").let { if (it.isEmpty() || it[0] in ''..'') "•" else it }
-                pPr?.kid("buAutoNum") != null -> "${++number}."
-                else -> null
+            val hasText = runs.any { it.text.isNotBlank() }
+            val bullet = when (val bu = st.bullet) {
+                null, "" -> null
+                "#" -> if (hasText) "${++number}." else null
+                else -> if (hasText) bu else null
             }
-            SPara(runs.ifEmpty { listOf(SRun("", size)) }, pPr?.getAttribute("algn")?.ifEmpty { null } ?: "l", level, bullet)
+            SPara(runs.ifEmpty { listOf(SRun("", size)) }, st.align ?: "l", level, bullet)
         }
     }
 

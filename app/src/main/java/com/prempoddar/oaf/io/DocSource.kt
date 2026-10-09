@@ -76,6 +76,28 @@ class DocSource(
     companion object {
         fun fromFile(f: File) = DocSource(Uri.fromFile(f), f.name, f.length(), null, f)
 
+        /**
+         * A file handed over by another app. Its permission to read usually ends when that app
+         * says so, so unless it can be kept for good (and saved back to), OAF keeps its own copy
+         * in a private folder: Recents can then open it again later. Run off the main thread.
+         */
+        fun received(context: Context, uri: Uri, mimeHint: String?): DocSource {
+            val original = fromUri(context, uri, mimeHint)
+            if (uri.scheme != ContentResolver.SCHEME_CONTENT) return original
+            val kept = runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                true
+            }.getOrDefault(false)
+            if (kept) return original
+            return runCatching {
+                val dir = File(context.filesDir, "received/${uri.toString().hashCode().toUInt()}").apply { mkdirs() }
+                val safe = original.name.replace(Regex("[\\/:*?\"<>|]"), "_").ifBlank { "file" }
+                val copy = File(dir, safe)
+                original.open(context).use { i -> copy.outputStream().use { i.copyTo(it) } }
+                DocSource(Uri.fromFile(copy), original.name, copy.length(), original.mime, copy)
+            }.getOrDefault(original)
+        }
+
         fun fromUri(context: Context, uri: Uri, mimeHint: String? = null): DocSource {
             if (uri.scheme == ContentResolver.SCHEME_FILE) uri.path?.let { return fromFile(File(it)) }
             var name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"

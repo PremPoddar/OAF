@@ -387,12 +387,13 @@ private fun HtmlView(html: String, top: androidx.compose.ui.unit.Dp, onTap: () -
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
-                // A web page is shown as a browser would: its scripts, saved state and the pictures and
-                // styles beside it. Markdown we render ourselves needs none of that.
+                // A web page runs as it would in a browser, with its scripts, saved state and the
+                // pictures and styles beside it. Markdown we render ourselves needs none of that.
                 settings.javaScriptEnabled = page
                 settings.domStorageEnabled = page
                 settings.allowFileAccess = page
-                settings.blockNetworkLoads = !page
+                // OAF has no internet permission: pages show what's on the phone, nothing from the web.
+                settings.blockNetworkLoads = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = page
                 settings.builtInZoomControls = true

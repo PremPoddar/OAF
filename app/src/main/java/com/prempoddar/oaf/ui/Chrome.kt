@@ -36,7 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.LightMode
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Whether the bars are showing. Viewers flip it on tap and hide it while reading. */
 class ChromeState(val visible: MutableState<Boolean>) {
@@ -58,6 +61,8 @@ fun ViewerScaffold(
     subtitle: String? = null,
     chrome: ChromeState = rememberChrome(),
     autoHide: Boolean = true,
+    /** The sun/moon button that turns the pages light or dark for every viewer. */
+    themeToggle: Boolean = true,
     onBack: () -> Unit,
     actions: @Composable RowScope.() -> Unit = {},
     toolbar: (@Composable RowScope.() -> Unit)? = null,
@@ -79,6 +84,18 @@ fun ViewerScaffold(
                     Column(Modifier.weight(1f)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1)
+                    }
+                    if (themeToggle) {
+                        val scope = androidx.compose.runtime.rememberCoroutineScope()
+                        IconButton(onClick = {
+                            val next = if (paper.dark) com.prempoddar.oaf.ui.design.Appearance.Mode.LIGHT else com.prempoddar.oaf.ui.design.Appearance.Mode.DARK
+                            scope.launch { com.prempoddar.oaf.AppGraph.prefs.update { it.copy(viewerMode = next) } }
+                        }) {
+                            Icon(
+                                if (paper.dark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
+                                if (paper.dark) "Light pages" else "Dark pages",
+                            )
+                        }
                     }
                     actions()
                 }

@@ -43,4 +43,19 @@ class EditGeometryTest {
         assertThat(EditGeometry.editedName("Holiday.jpeg", "png")).isEqualTo("Holiday (edited).png")
         assertThat(EditGeometry.editedName("clip", "mp4")).isEqualTo("clip (edited).mp4")
     }
+
+    @Test fun blurSpreadsASharpEdgeAndKeepsFlatAreasFlat() {
+        val w = 40; val h = 4
+        val black = 0xFF000000.toInt(); val white = 0xFFFFFFFF.toInt()
+        val px = IntArray(w * h) { if (it % w < w / 2) black else white }
+        val out = ImageOps.boxBlur(px, w, h, 3)
+        // Far from the edge nothing changes; at the edge it's grey; the order of brightness holds.
+        assertThat(out[0]).isEqualTo(black)
+        assertThat(out[w - 1]).isEqualTo(white)
+        val grey = { i: Int -> out[i] and 255 }
+        assertThat(grey(w / 2)).isIn(com.google.common.collect.Range.open(60, 200))
+        assertThat(grey(w / 2 - 3)).isLessThan(grey(w / 2 + 2))
+        // Every row is blurred the same way.
+        assertThat(out.copyOfRange(w, 2 * w)).isEqualTo(out.copyOfRange(0, w))
+    }
 }

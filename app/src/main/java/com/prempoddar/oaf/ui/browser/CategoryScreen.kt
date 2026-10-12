@@ -126,7 +126,7 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
     val list = all?.let { l ->
         val q = query?.trim()?.lowercase()
         val filtered = if (q.isNullOrEmpty()) l else l.filter { it.file.name.lowercase().contains(q) }
-        sortEntries(filtered, settings.sort, false)
+        sortEntries(filtered, settings.sort, false, settings.descending)
     }
     val selecting = selected.isNotEmpty()
 
@@ -170,8 +170,8 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
     }
 
     if (sheet) SortSheet(
-        settings.sort, settings.foldersFirst, settings.showHidden, grid,
-        onSort = { s -> scope.launch { AppGraph.prefs.update { it.copy(sort = s) } } },
+        settings.sort, settings.descending, settings.foldersFirst, settings.showHidden, grid,
+        onSort = { s, d -> scope.launch { AppGraph.prefs.update { it.copy(sort = s, descending = d) } } },
         onFoldersFirst = { v -> scope.launch { AppGraph.prefs.update { it.copy(foldersFirst = v) } } },
         onHidden = { v -> scope.launch { AppGraph.prefs.update { it.copy(showHidden = v) } } },
         onGrid = { grid = it },

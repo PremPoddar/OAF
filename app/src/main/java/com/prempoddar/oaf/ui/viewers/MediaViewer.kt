@@ -1,5 +1,17 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.edit.MediaOutput
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Compress
+import androidx.compose.material.icons.rounded.ContentCut
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -189,8 +201,9 @@ private suspend fun Player.fillQueue(source: DocSource, video: Boolean) {
 @Composable
 fun MediaViewer(source: DocSource, onBack: () -> Unit) {
     var editing by remember { mutableStateOf(false) }
+    var editAs by remember { mutableStateOf<MediaOutput?>(null) }
     if (editing) {
-        MediaEditor(source, onClose = { editing = false })
+        MediaEditor(source, onClose = { editing = false; editAs = null }, start = editAs)
         return
     }
     if (source.kind == FileKind.VIDEO) {
@@ -209,7 +222,7 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
         }
         DisposableEffect(Unit) { onDispose { player.release() } }
         LaunchedEffect(player) { player.fillQueue(source, video = true) }
-        VideoPlayer(rememberPlayerState(player), source, onBack, onEdit = { player.pause(); editing = true })
+        VideoPlayer(rememberPlayerState(player), source, onBack, onEdit = { as_ -> player.pause(); editAs = as_; editing = true })
         return
     }
     val controller = rememberMediaController()
@@ -227,7 +240,7 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
             controller.fillQueue(source, video = false)
         } else controller.play()
     }
-    AudioPlayer(rememberPlayerState(controller), source, onBack, onEdit = { controller.pause(); editing = true })
+    AudioPlayer(rememberPlayerState(controller), source, onBack, onEdit = { as_ -> controller.pause(); editAs = as_; editing = true })
 }
 
 // ---------------------------------------------------------------- shared
@@ -305,10 +318,47 @@ private fun SleepButton(tint: Color, activeTint: Color) {
                 SleepTimer.State.Off -> Unit
             }
         }
-        DropdownMenu(open, onDismissRequest = { open = false }) {
-            listOf(5, 15, 30, 45, 60, 90).forEach { m -> DropdownMenuItem(text = { Text("$m minutes") }, onClick = { open = false; SleepTimer.minutes(m) }) }
-            DropdownMenuItem(text = { Text("End of this track") }, onClick = { open = false; SleepTimer.endOfTrack() })
-            if (timer != SleepTimer.State.Off) DropdownMenuItem(text = { Text("Turn off") }, onClick = { open = false; SleepTimer.cancel() })
+    }
+    if (open) SleepSheet(onDismiss = { open = false })
+}
+
+/** The sleep timer as a sheet: what's set now, then the choices as chips. */
+@kotlin.OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SleepSheet(onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.navigationBarsPadding().padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Bedtime, null, tint = MaterialTheme.colorScheme.primary)
+                Text("Sleep timer", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 12.dp))
+            }
+            Text("Playback pauses when the time is up.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+            SleepChoices(onPicked = onDismiss)
+        }
+    }
+}
+
+/** The sleep timer's choices, highlighting the one that's set and showing the time left. */
+@kotlin.OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SleepChoices(modifier: Modifier = Modifier, onPicked: () -> Unit = {}) {
+    val timer by SleepTimer.state.collectAsStateWithLifecycle()
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(timer) { while (timer is SleepTimer.State.At) { now = System.currentTimeMillis(); delay(1000) } }
+    Column(modifier) {
+        when (val t = timer) {
+            is SleepTimer.State.At -> Text("Stops in ${formatTime(t.endsAt - now)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
+            SleepTimer.State.EndOfTrack -> Text("Stops when this one ends", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
+            SleepTimer.State.Off -> Unit
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(5, 10, 15, 30, 45, 60, 90).forEach { m ->
+                FilterChip(false, onClick = { SleepTimer.minutes(m); onPicked() }, label = { Text(if (m < 60) "$m min" else if (m == 60) "1 hour" else "1 h 30") })
+            }
+            FilterChip(timer == SleepTimer.State.EndOfTrack, onClick = { SleepTimer.endOfTrack(); onPicked() }, label = { Text("End of this one") })
+        }
+        if (timer != SleepTimer.State.Off) {
+            OutlinedButton(onClick = { SleepTimer.cancel(); onPicked() }, modifier = Modifier.padding(top = 12.dp).fillMaxWidth()) { Text("Turn off the timer") }
         }
     }
 }
@@ -326,7 +376,7 @@ private fun ErrorNote(message: String) {
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AudioPlayer(state: PlayerState, source: DocSource, onBack: () -> Unit, onEdit: () -> Unit) {
+internal fun AudioPlayer(state: PlayerState, source: DocSource, onBack: () -> Unit, onEdit: (MediaOutput?) -> Unit) {
     val context = LocalContext.current
     val wide = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
     var queue by remember { mutableStateOf(false) }
@@ -357,7 +407,8 @@ internal fun AudioPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                     DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("Trim or convert") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { menu = false; onEdit() })
+                        DropdownMenuItem(text = { Text("Trim or convert") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { menu = false; onEdit(null) })
+                        DropdownMenuItem(text = { Text("Make a video") }, leadingIcon = { Icon(Icons.Rounded.Movie, null) }, onClick = { menu = false; onEdit(MediaOutput.PICTURE_VIDEO) })
                         DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = { menu = false; shareSource(context, source) })
                         DropdownMenuItem(text = { Text("Open with…") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, null) }, onClick = { menu = false; openElsewhere(context, source) })
                     }
@@ -446,7 +497,7 @@ private fun VideoIcon(icon: ImageVector, label: String, size: Dp = 24.dp, onClic
 
 @OptIn(UnstableApi::class)
 @Composable
-internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Unit, onEdit: () -> Unit) {
+internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Unit, onEdit: (MediaOutput?) -> Unit) {
     val context = LocalContext.current
     val activity = remember { context.activity() }
     val audio = remember { context.getSystemService(AudioManager::class.java) }
@@ -455,7 +506,7 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
     var locked by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<Triple<ImageVector, String, Alignment>?>(null) }
     var fit by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
-    var menu by remember { mutableStateOf(false) }
+    var more by remember { mutableStateOf(false) }
     var brightness by remember { mutableFloatStateOf(activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0 } ?: 0.5f) }
     val loadSubs = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -580,40 +631,33 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                                     if (state.hasSubtitles && state.subtitlesOn) Icons.Rounded.ClosedCaption else Icons.Rounded.ClosedCaptionDisabled,
                                     if (state.hasSubtitles) "Subtitles" else "Load subtitles",
                                 ) { if (state.hasSubtitles) state.setSubtitles(!state.subtitlesOn) else loadSubs.launch(arrayOf("*/*")) }
-                                Box {
-                                    VideoIcon(Icons.Rounded.MoreVert, "More") { menu = true }
-                                    DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                                        DropdownMenuItem(text = { Text("Load subtitles…") }, leadingIcon = { Icon(Icons.Rounded.ClosedCaption, null) }, onClick = { menu = false; loadSubs.launch(arrayOf("*/*")) })
-                                        DropdownMenuItem(text = { Text("Trim, crop or convert") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { menu = false; onEdit() })
-                                        DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = { menu = false; shareSource(context, source) })
-                                        DropdownMenuItem(text = { Text("Open with…") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, null) }, onClick = { menu = false; openElsewhere(context, source) })
-                                    }
-                                }
+                                VideoIcon(Icons.Rounded.PictureInPictureAlt, "Picture in picture") { activity?.let { Pip.enter(it, state.video.width, state.video.height) } }
+                                VideoIcon(Icons.Rounded.Tune, "More") { more = true }
                             }
-                            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(36.dp)) {
-                                VideoIcon(Icons.Rounded.Replay10, "Back 10 seconds", 36.dp) { state.seekBy(-10_000) }
-                                if (!state.buffering) Surface(onClick = { state.toggle() }, shape = CircleShape, color = Color.White.copy(alpha = 0.18f), contentColor = Color.White, modifier = Modifier.size(80.dp)) {
-                                    Box(contentAlignment = Alignment.Center) { Icon(if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (state.playing) "Pause" else "Play", Modifier.size(48.dp)) }
-                                } else Spacer(Modifier.size(80.dp))
-                                VideoIcon(Icons.Rounded.Forward10, "Forward 10 seconds", 36.dp) { state.seekBy(10_000) }
+                            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                if (state.count > 1) GlassButton(Icons.Rounded.SkipPrevious, "Previous video", 48.dp, enabled = state.index > 0) { state.player.seekToPrevious() }
+                                GlassButton(Icons.Rounded.Replay10, "Back 10 seconds", 56.dp) { state.seekBy(-10_000) }
+                                if (!state.buffering) Surface(onClick = { state.toggle() }, shape = CircleShape, color = Color.White, contentColor = Color.Black, modifier = Modifier.size(76.dp)) {
+                                    Box(contentAlignment = Alignment.Center) { Icon(if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (state.playing) "Pause" else "Play", Modifier.size(44.dp)) }
+                                } else Spacer(Modifier.size(76.dp))
+                                GlassButton(Icons.Rounded.Forward10, "Forward 10 seconds", 56.dp) { state.seekBy(10_000) }
+                                if (state.count > 1) GlassButton(Icons.Rounded.SkipNext, "Next video", 48.dp, enabled = state.index < state.count - 1) { state.player.seekToNext() }
                             }
                             Column(
-                                Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))))
-                                    .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 4.dp),
+                                Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
+                                    .navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),
                             ) {
                                 SeekRow(state, active = Color.White, track = Color.White.copy(alpha = 0.25f), text = Color.White.copy(alpha = 0.85f))
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    VideoIcon(Icons.Rounded.Lock, "Lock controls") { locked = true }
-                                    SpeedButton(state, Color.White)
+                                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    GlassPill(Icons.Rounded.Lock, "Lock") { locked = true }
+                                    GlassPill(Icons.Rounded.Speed, speedLabel(state.speed)) { more = true }
                                     Spacer(Modifier.weight(1f))
-                                    VideoIcon(Icons.Rounded.AspectRatio, if (fit == AspectRatioFrameLayout.RESIZE_MODE_FIT) "Fill the screen" else "Fit to screen") {
+                                    GlassPill(Icons.Rounded.AspectRatio, if (fit == AspectRatioFrameLayout.RESIZE_MODE_FIT) "Fit" else "Fill") {
                                         fit = if (fit == AspectRatioFrameLayout.RESIZE_MODE_FIT) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
                                     }
-                                    VideoIcon(Icons.Rounded.ScreenRotation, "Rotate") {
+                                    GlassPill(Icons.Rounded.ScreenRotation, null) {
                                         activity?.requestedOrientation = if (activity?.resources?.configuration?.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                                     }
-                                    VideoIcon(Icons.Rounded.PictureInPictureAlt, "Picture in picture") { activity?.let { Pip.enter(it, state.video.width, state.video.height) } }
-                                    if (state.count > 1) VideoIcon(Icons.Rounded.SkipNext, "Next video") { state.player.seekToNext() }
                                 }
                             }
                         }
@@ -623,4 +667,87 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
         }
         state.error?.let { ErrorNote(it) }
     }
+    if (more) VideoMoreSheet(
+        state, onDismiss = { more = false },
+        onSubtitles = { more = false; loadSubs.launch(arrayOf("*/*")) },
+        onEdit = { as_ -> more = false; onEdit(as_) },
+        onShare = { more = false; shareSource(context, source) },
+        onOpenWith = { more = false; openElsewhere(context, source) },
+    )
 }
+
+/** A round see-through button over the picture. */
+@Composable
+private fun GlassButton(icon: ImageVector, label: String, size: Dp, enabled: Boolean = true, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick, enabled = enabled, shape = CircleShape, color = Color.Black.copy(alpha = 0.35f),
+        contentColor = Color.White.copy(alpha = if (enabled) 1f else 0.4f), modifier = Modifier.size(size),
+    ) { Box(contentAlignment = Alignment.Center) { Icon(icon, label, Modifier.size(size * 0.55f)) } }
+}
+
+/** A small see-through pill with an icon and an optional word, for the bar under the seek line. */
+@Composable
+private fun GlassPill(icon: ImageVector, text: String?, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = CircleShape, color = Color.White.copy(alpha = 0.14f), contentColor = Color.White) {
+        Row(Modifier.padding(horizontal = if (text == null) 10.dp else 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, text, Modifier.size(18.dp))
+            if (text != null) Text(text, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 6.dp))
+        }
+    }
+}
+
+/** Everything else about the video, as big tiles in a sheet rather than a list of words. */
+@kotlin.OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun VideoMoreSheet(
+    state: PlayerState, onDismiss: () -> Unit, onSubtitles: () -> Unit, onEdit: (MediaOutput?) -> Unit, onShare: () -> Unit, onOpenWith: () -> Unit,
+) {
+    val audioTracks = remember(state.player.currentTracks) {
+        state.player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.flatMap { g -> (0 until g.length).map { i -> g to i } }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
+            Text("Playback speed", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                speeds.forEach { sp -> FilterChip(state.speed == sp, onClick = { state.player.setPlaybackSpeed(sp) }, label = { Text(if (sp == 1f) "Normal" else speedLabel(sp)) }) }
+            }
+            if (audioTracks.size > 1) {
+                Text("Sound track", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+                FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    audioTracks.forEachIndexed { n, (g, i) ->
+                        val f = g.getTrackFormat(i)
+                        val name = f.label ?: f.language?.let { java.util.Locale.forLanguageTag(it).displayLanguage.ifEmpty { it } } ?: "Track ${n + 1}"
+                        FilterChip(g.isTrackSelected(i), onClick = {
+                            state.player.trackSelectionParameters = state.player.trackSelectionParameters.buildUpon()
+                                .setOverrideForType(androidx.media3.common.TrackSelectionOverride(g.mediaTrackGroup, i)).build()
+                        }, label = { Text(name) })
+                    }
+                }
+            }
+            Text("Sleep timer", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+            SleepChoices(Modifier.padding(vertical = 8.dp))
+            Text("Do more", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
+            val tiles = listOf(
+                Triple(Icons.Rounded.ClosedCaption, "Subtitles file", onSubtitles),
+                Triple(Icons.Rounded.ContentCut, "Trim or crop", { onEdit(null) }),
+                Triple(Icons.Rounded.MusicNote, "Save the sound", { onEdit(MediaOutput.AUDIO) }),
+                Triple(Icons.Rounded.Compress, "Make smaller", { onEdit(MediaOutput.VIDEO_SMALL) }),
+                Triple(Icons.Rounded.Share, "Share", onShare),
+                Triple(Icons.AutoMirrored.Rounded.OpenInNew, "Open with", onOpenWith),
+            )
+            tiles.chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { (icon, label, go) ->
+                        Surface(onClick = go, shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.weight(1f)) {
+                            Column(Modifier.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+                                Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp), maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

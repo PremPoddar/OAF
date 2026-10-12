@@ -256,7 +256,10 @@ fun TextScreen(source: DocSource, onBack: () -> Unit) {
                     }, highlighter = highlighter.takeIf { value.text.length < HIGHLIGHT_EDIT_LIMIT }, style = style, wrap = wrap, paper = paper)
                 }
                 rendered && source.kind == FileKind.MARKDOWN -> HtmlView(markdownToHtml(value.text.ifEmpty { l.text }, paper, fontScale), insets.calculateTopPadding(), chrome::toggle)
-                rendered && source.kind == FileKind.HTML -> HtmlView(value.text.ifEmpty { l.text }, insets.calculateTopPadding(), chrome::toggle)
+                rendered && source.kind == FileKind.HTML -> HtmlView(
+                    value.text.ifEmpty { l.text }, insets.calculateTopPadding(), chrome::toggle, page = true,
+                    base = source.file?.parentFile?.let { android.net.Uri.fromFile(it).toString() + "/" },
+                )
                 else -> {
                     val shown = remember(l.text, pretty) {
                         val p = if (pretty) (if (source.kind == FileKind.JSON) Pretty.json(l.text) else Pretty.xml(l.text)) else null
@@ -380,19 +383,42 @@ private fun FindBar(value: TextFieldValue, onChange: (TextFieldValue) -> Unit, o
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun HtmlView(html: String, top: androidx.compose.ui.unit.Dp, onTap: () -> Unit) {
+private fun HtmlView(html: String, top: androidx.compose.ui.unit.Dp, onTap: () -> Unit, page: Boolean = false, base: String? = null) {
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
-                // Local documents never run scripts or load from the network.
-                settings.javaScriptEnabled = false
-                settings.allowFileAccess = false
-                settings.blockNetworkLoads = true
-                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                // A web page is shown as a browser would: its scripts, saved state and the pictures and
+                // styles beside it. Markdown we render ourselves needs none of that.
+                settings.javaScriptEnabled = page
+                settings.domStorageEnabled = page
+                settings.allowFileAccess = page
+                settings.blockNetworkLoads = !page
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = page
+                settings.builtInZoomControls = true
+                settings.displayZoomControls = false
+                if (!page) setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                webViewClient = object : android.webkit.WebViewClient() {
+                    // Links to other sites open in the browser; links within the page stay here.
+                    override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                        val url = request.url
+                        if (url.scheme == "http" || url.scheme == "https") {
+                            runCatching { view.context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url)) }
+                            return true
+                        }
+                        return false
+                    }
+                }
                 setOnClickListener { onTap() }
             }
         },
-        update = { it.loadDataWithBaseURL("file:///android_res/", html, "text/html", "utf-8", null) },
+        // Loaded once per text, so taps that show or hide the bars don't reload the page.
+        update = { w ->
+            if (w.tag != html) {
+                w.tag = html
+                w.loadDataWithBaseURL(base ?: "file:///android_res/", html, "text/html", "utf-8", null)
+            }
+        },
         modifier = Modifier.fillMaxSize().padding(top = top + 56.dp),
     )
 }

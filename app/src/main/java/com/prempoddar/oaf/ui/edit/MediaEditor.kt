@@ -58,6 +58,12 @@ import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
+import androidx.compose.foundation.horizontalScroll
+import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.net.Uri
 import androidx.media3.transformer.Transformer
 import androidx.media3.ui.PlayerView
 import com.prempoddar.oaf.AppGraph
@@ -71,7 +77,15 @@ import com.prempoddar.oaf.ui.design.SwitchRow
 import kotlinx.coroutines.delay
 import java.io.File
 
-private enum class Output(val label: String, val ext: String) { VIDEO("Video (MP4)", "mp4"), AUDIO("Audio only (M4A)", "m4a") }
+/** What a media file can be saved as. */
+enum class MediaOutput(val label: String, val ext: String) {
+    VIDEO("MP4", "mp4"),
+    /** HEVC: about half the size at the same quality; plays on phones and computers from recent years. */
+    VIDEO_SMALL("MP4, smaller (HEVC)", "mp4"),
+    AUDIO("Audio only (M4A)", "m4a"),
+    /** A song or recording with a picture, for sharing where only videos can go. */
+    PICTURE_VIDEO("Video with a picture", "mp4"),
+}
 
 /**
  * Trims video and audio, and for videos crops to a shape, turns, shrinks, removes the sound or
@@ -80,7 +94,7 @@ private enum class Output(val label: String, val ext: String) { VIDEO("Video (MP
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
 @OptIn(UnstableApi::class)
 @Composable
-fun MediaEditor(source: DocSource, onClose: () -> Unit) {
+fun MediaEditor(source: DocSource, onClose: () -> Unit, start: MediaOutput? = null) {
     val context = LocalContext.current
     val isVideo = source.kind == FileKind.VIDEO
     val wide = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
@@ -97,7 +111,10 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit) {
     var rotation by remember { mutableStateOf(0) }
     var height by remember { mutableStateOf(0) } // 0 = original
     var mute by remember { mutableStateOf(false) }
-    var output by remember { mutableStateOf(if (isVideo) Output.VIDEO else Output.AUDIO) }
+    var output by remember { mutableStateOf(start ?: if (isVideo) MediaOutput.VIDEO else MediaOutput.AUDIO) }
+    // For a video from audio: the song's own cover unless another picture is chosen.
+    var picture by remember { mutableStateOf<Uri?>(null) }
+    val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { it?.let { u -> picture = u } }
 
     var exporting by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf<Float?>(null) }
@@ -139,13 +156,21 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit) {
             if (rotation != 0) add(ScaleAndRotateTransformation.Builder().setRotationDegrees(-rotation.toFloat()).build())
             if (height > 0) add(Presentation.createForHeight(height))
         }
+        val video = output == MediaOutput.VIDEO || output == MediaOutput.VIDEO_SMALL
         val edited = EditedMediaItem.Builder(item)
-            .setRemoveAudio(output == Output.VIDEO && mute)
-            .setRemoveVideo(output == Output.AUDIO)
-            .setEffects(Effects(emptyList(), if (output == Output.VIDEO) effects else emptyList()))
+            .setRemoveAudio(video && mute)
+            .setRemoveVideo(output == MediaOutput.AUDIO || (!isVideo && output == MediaOutput.PICTURE_VIDEO))
+            .setEffects(Effects(emptyList(), if (video) effects else emptyList()))
             .build()
+        val composition = if (output == MediaOutput.PICTURE_VIDEO) {
+            // The sound as it is, and the picture repeated for as long as the sound lasts.
+            val still = MediaItem.Builder().setUri(picture ?: coverPicture(context, source)).setImageDurationMs(1_000).build()
+            val frame = EditedMediaItem.Builder(still).setFrameRate(10)
+                .setEffects(Effects(emptyList(), listOf(Presentation.createForWidthAndHeight(1280, 720, Presentation.LAYOUT_SCALE_TO_FIT)))).build()
+            Composition.Builder(EditedMediaItemSequence(edited), EditedMediaItemSequence(listOf(frame), true)).build()
+        } else Composition.Builder(EditedMediaItemSequence(edited)).build()
         val t = Transformer.Builder(context)
-            .setVideoMimeType(MimeTypes.VIDEO_H264)
+            .setVideoMimeType(if (output == MediaOutput.VIDEO_SMALL) MimeTypes.VIDEO_H265 else MimeTypes.VIDEO_H264)
             .setAudioMimeType(MimeTypes.AUDIO_AAC)
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
@@ -162,7 +187,7 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit) {
         player.pause()
         exporting = true; saved = null; error = null; progress = null
         transformer = t
-        t.start(edited, out.path)
+        t.start(composition, out.path)
     }
     LaunchedEffect(transformer) {
         val t = transformer ?: return@LaunchedEffect
@@ -197,11 +222,10 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit) {
                 FilledTonalButton(onClick = { if (duration > 0) range = range.start..(position.toFloat() / duration).coerceAtLeast(range.start + 0.002f) }, modifier = Modifier.weight(1f)) { Text("End here") }
             }
         }
-        if (isVideo) {
-            SectionLabel("Save as")
-            ChoiceChips(Output.entries.map { it to it.label }, output, { output = it }, Modifier.padding(horizontal = 20.dp))
-        }
-        if (isVideo && output == Output.VIDEO) {
+        SectionLabel("Save as")
+        val choices = if (isVideo) listOf(MediaOutput.VIDEO, MediaOutput.VIDEO_SMALL, MediaOutput.AUDIO) else listOf(MediaOutput.AUDIO, MediaOutput.PICTURE_VIDEO)
+        ChoiceChips(choices.map { it to it.label }, output, { output = it }, Modifier.padding(horizontal = 20.dp).horizontalScroll(rememberScrollState()))
+        if (isVideo && (output == MediaOutput.VIDEO || output == MediaOutput.VIDEO_SMALL)) {
             SectionLabel("Shape")
             ChoiceChips(listOf(0f to "Original", 1f to "Square", 16f / 9 to "16:9", 9f / 16 to "9:16", 4f / 3 to "4:3", 4f / 5 to "4:5"), aspect, { aspect = it }, Modifier.padding(horizontal = 20.dp))
             SectionLabel("Turn")
@@ -210,9 +234,18 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit) {
             ChoiceChips(listOf(0 to "Original", 1080 to "1080p", 720 to "720p", 480 to "480p"), height, { height = it }, Modifier.padding(horizontal = 20.dp))
             SwitchRow("Remove sound", null, null, mute) { mute = it }
         }
-        if (!isVideo) {
+        if (output == MediaOutput.PICTURE_VIDEO) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (picture == null) "Uses the song's cover, or a plain card with its name if it has none." else "Uses the picture you chose.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
+                )
+                FilledTonalButton(onClick = { pickPicture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("Choose picture") }
+            }
+        }
+        if (output == MediaOutput.AUDIO) {
             Text(
-                "Saves the trimmed part as M4A (AAC), which plays everywhere.",
+                if (isVideo) "Keeps only the sound, as M4A (AAC), which plays everywhere." else "Saves the trimmed part as M4A (AAC), which plays everywhere.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
             )
@@ -238,4 +271,29 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit) {
         onCancel = { transformer?.cancel(); transformer = null; exporting = false; outFile?.delete() },
         onDone = { exporting = false; if (saved != null) onClose() },
     )
+}
+
+/**
+ * A picture for a song: its embedded cover if it has one, otherwise a card in the app's colours
+ * with the song's name. Kept in the cache, as a file the converter can read.
+ */
+private fun coverPicture(context: android.content.Context, source: DocSource): Uri {
+    val out = File(context.cacheDir, "cover-${source.uri.toString().hashCode().toUInt()}.png")
+    val art = runCatching {
+        android.media.MediaMetadataRetriever().run {
+            try { setDataSource(context, source.uri); embeddedPicture } finally { release() }
+        }
+    }.getOrNull()
+    val bitmap = art?.let { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size) } ?: run {
+        val b = android.graphics.Bitmap.createBitmap(1280, 720, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(b)
+        c.drawPaint(android.graphics.Paint().apply { shader = android.graphics.LinearGradient(0f, 0f, 1280f, 720f, 0xFF1F3B63.toInt(), 0xFF0E1A2C.toInt(), android.graphics.Shader.TileMode.CLAMP) })
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE; textSize = 64f; textAlign = android.graphics.Paint.Align.CENTER }
+        val title = source.name.substringBeforeLast('.').let { if (it.length > 32) it.take(31) + "…" else it }
+        c.drawText("♪", 640f, 300f, p.apply { textSize = 120f })
+        c.drawText(title, 640f, 440f, p.apply { textSize = 56f })
+        b
+    }
+    out.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+    return Uri.fromFile(out)
 }

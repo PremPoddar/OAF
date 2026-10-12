@@ -113,6 +113,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -163,6 +164,7 @@ import com.prempoddar.oaf.io.DocSource
 import com.prempoddar.oaf.ui.Inter
 import com.prempoddar.oaf.ui.Literata
 import com.prempoddar.oaf.ui.LocalPaper
+import com.prempoddar.oaf.ui.nightPage
 import com.prempoddar.oaf.ui.Mono
 import com.prempoddar.oaf.ui.Paper
 import com.prempoddar.oaf.ui.ViewerScaffold
@@ -848,21 +850,25 @@ private fun PageColumn(
     topPad: Dp, editing: Boolean, onTap: () -> Unit, block: @Composable (Int) -> Unit,
 ) {
     val desk = Color(0xFF8A8D93).copy(alpha = 0.35f)
+    val night = LocalPaper.current.dark
     val zoomNow by androidx.compose.runtime.rememberUpdatedState(zoom)
     BoxWithConstraints(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHighest)
             .pointerInput(Unit) {
-                // Two fingers zoom; one finger is left alone so the pages scroll as usual.
+                // Two fingers zoom; one finger is left alone so the pages scroll as usual. Once a pinch
+                // starts, the rest of that touch belongs to it, so lifting one finger doesn't scroll.
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     var current = zoomNow
+                    var pinching = false
                     do {
                         val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                         if (event.changes.count { it.pressed } >= 2) {
+                            pinching = true
                             current = (current * event.calculateZoom()).coerceIn(1f, 4f)
                             onZoom(current)
-                            event.changes.forEach { it.consume() }
                         }
+                        if (pinching) event.changes.forEach { it.consume() }
                     } while (event.changes.any { it.pressed })
                 }
             },
@@ -872,6 +878,11 @@ private fun PageColumn(
         // Document points to screen pixels.
         val pt = remember(sheet, density) { Density(density.density * (sheet.value / page.width), 1f) }
         val hScroll = rememberScrollState()
+        // How tall each piece is, in document points, as it's laid out; the sheets are cut from these.
+        val heights = remember(count, page) { androidx.compose.runtime.mutableStateMapOf<Int, Float>() }
+        val starts by remember(count, page, pageStarts) {
+            androidx.compose.runtime.derivedStateOf { paginate(count, pageStarts, page.height - page.top - page.bottom) { heights[it] } }
+        }
         Box(Modifier.fillMaxSize().then(if (zoom > 1f) Modifier.horizontalScroll(hScroll) else Modifier)) {
             LazyColumn(
                 state = list,
@@ -879,16 +890,18 @@ private fun PageColumn(
                 contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = topPad, bottom = 120.dp),
             ) {
                 items(count, key = { it }) { i ->
-                    val starts = i == 0 || i in pageStarts
-                    val ends = i == count - 1 || (i + 1) in pageStarts
+                    val begins = i == 0 || i in starts
+                    val ends = i == count - 1 || (i + 1) in starts
                     Column(Modifier.fillMaxWidth()) {
-                        if (starts && i > 0) Spacer(Modifier.height(12.dp))
+                        if (begins && i > 0) Spacer(Modifier.height(12.dp))
                         CompositionLocalProvider(LocalDensity provides pt) {
                             Column(
-                                Modifier.fillMaxWidth().background(Color.White)
-                                    .padding(start = page.left.dp, end = page.right.dp, top = if (starts) page.top.dp else 0.dp, bottom = if (ends) page.bottom.dp else 0.dp),
+                                Modifier.fillMaxWidth().nightPage(night).background(Color.White)
+                                    .padding(start = page.left.dp, end = page.right.dp, top = if (begins) page.top.dp else 0.dp, bottom = if (ends) page.bottom.dp else 0.dp),
                             ) {
-                                CompositionLocalProvider(LocalContentColor provides Color.Black) { block(i) }
+                                CompositionLocalProvider(LocalContentColor provides Color.Black) {
+                                    Box(Modifier.onSizeChanged { heights[i] = it.height.toFloat() / pt.density }) { block(i) }
+                                }
                             }
                         }
                         if (ends) Box(Modifier.fillMaxWidth().height(1.dp).background(desk))
@@ -897,4 +910,21 @@ private fun PageColumn(
             }
         }
     }
+}
+
+/**
+ * Where each sheet begins: at the document's own page breaks, and wherever the next piece would
+ * run past the bottom of the sheet. Pieces not laid out yet ([height] null) end the reckoning;
+ * sheets further down are cut once they've been measured.
+ */
+internal fun paginate(count: Int, breaks: Set<Int>, room: Float, height: (Int) -> Float?): Set<Int> {
+    val out = HashSet<Int>(breaks)
+    var used = 0f
+    for (i in 0 until count) {
+        if (i in breaks) used = 0f
+        val h = height(i) ?: break
+        if (used > 0f && used + h > room) { out += i; used = 0f }
+        used += h
+    }
+    return out
 }

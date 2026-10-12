@@ -180,7 +180,7 @@ fun PdfScreen(source: DocSource, onBack: () -> Unit) {
                 Opening.Ready(PdfSession.open(source.local(context), work, password))
             } catch (e: PdfSession.PasswordNeeded) {
                 Opening.NeedsPassword(wrong = password != null)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Opening.Failed(e.message ?: "Couldn't open this PDF")
             }
         }
@@ -238,7 +238,9 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
     val scope = rememberCoroutineScope()
     val chrome = rememberChrome()
     val state = remember { PdfState(session, scope, RenderHost()) { msg -> scope.launch { Toast.makeText(context, msg, Toast.LENGTH_LONG).show() } } }
-    LaunchedEffect(Unit) { state.start() }
+    LaunchedEffect(Unit) {
+        runCatching { state.start() }.onFailure { Toast.makeText(context, "Couldn't draw this PDF: ${it.message ?: it.javaClass.simpleName}", Toast.LENGTH_LONG).show() }
+    }
     DisposableEffect(Unit) { onDispose { state.close() } }
     val perms = session.permissions
     val fonts = remember {
@@ -634,25 +636,28 @@ private fun PageList(
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        // A pinch only zooms: the page doesn't drift with the fingers, and lifting one
+                        // finger at the end doesn't turn into a scroll.
+                        var pinching = false
                         do {
                             val e = awaitPointerEvent(PointerEventPass.Initial)
                             if (e.changes.count { it.pressed } >= 2) {
+                                pinching = true
                                 val old = zoomNow.floatValue
                                 val new = (old * e.calculateZoom()).coerceIn(1f, 5f)
                                 val c = e.calculateCentroid(useCurrent = true)
-                                val pan = e.calculatePan()
                                 val k = new / old
                                 onZoom(new)
                                 zoomNow.floatValue = new
                                 // Keep what's under the fingers there.
-                                hScroll.dispatchRawDelta(((hScroll.value + c.x) * k - c.x - hScroll.value) - pan.x)
+                                hScroll.dispatchRawDelta((hScroll.value + c.x) * k - c.x - hScroll.value)
                                 val above = (0 until list.firstVisibleItemIndex).sumOf { i ->
                                     val p = state.pages[i]
                                     ((viewW.toPx() * old - margin.toPx() * 2) * p.height / p.width + 12.dp.toPx()).toDouble()
                                 }.toFloat() + list.firstVisibleItemScrollOffset
-                                list.dispatchRawDelta((above + c.y) * (k - 1) - pan.y)
-                                e.changes.forEach { it.consume() }
+                                list.dispatchRawDelta((above + c.y) * (k - 1))
                             }
+                            if (pinching) e.changes.forEach { it.consume() }
                         } while (e.changes.any { it.pressed })
                     }
                 }

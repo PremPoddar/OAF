@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.fadeIn
@@ -22,6 +23,7 @@ import com.prempoddar.oaf.ui.OafTheme
 import com.prempoddar.oaf.ui.browser.BinScreen
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -34,6 +36,7 @@ import com.prempoddar.oaf.ui.browser.FolderScreen
 import com.prempoddar.oaf.ui.browser.HomeTarget
 import com.prempoddar.oaf.ui.browser.SettingsScreen
 import com.prempoddar.oaf.ui.design.AboutScreen
+import com.prempoddar.oaf.ui.design.Appearance
 import com.prempoddar.oaf.ui.design.AppearanceScreen
 import com.prempoddar.oaf.ui.design.Credit
 import com.prempoddar.oaf.ui.design.LayeredIcon
@@ -108,15 +111,16 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("view/{key}") { e ->
                         val key = java.net.URLDecoder.decode(e.arguments!!.getString("key")!!, "UTF-8")
-                        val source = AppGraph.get(key) ?: DocSource.fromUri(this@MainActivity, Uri.parse(key))
-                        ViewerHost(
-                            source,
-                            onBack = {
-                                // Opened from another app: back returns there.
-                                if (openedFromOutside && nav.previousBackStackEntry?.destination?.route == "browser") finish() else nav.popBackStack()
-                            },
-                            onOpen = ::open,
-                        )
+                        // Kept for the life of this screen: a new source on every redraw would start loading again.
+                        val source = remember(key) { AppGraph.get(key) ?: DocSource.fromUri(this@MainActivity, Uri.parse(key)).also { AppGraph.put(it) } }
+                        // Opened from another app: back (button or swipe) returns there instead of to OAF's home.
+                        val leave = openedFromOutside && nav.previousBackStackEntry?.destination?.route == "browser"
+                        val onBack: () -> Unit = { if (leave) finish() else nav.popBackStack() }
+                        BackHandler(leave) { onBack() }
+                        // Pages can be light or dark on their own; the app around them keeps its look.
+                        OafTheme(s.appearance.copy(mode = if (s.viewerMode == Appearance.Mode.SYSTEM) s.appearance.mode else s.viewerMode)) {
+                            ViewerHost(source, onBack = onBack, onOpen = ::open)
+                        }
                     }
                 }
             }

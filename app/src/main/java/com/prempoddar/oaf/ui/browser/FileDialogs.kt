@@ -172,12 +172,24 @@ fun ConflictDialog(question: Clipboard.Question) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SortSheet(sort: SortBy, foldersFirst: Boolean, showHidden: Boolean, grid: Boolean, onSort: (SortBy) -> Unit, onFoldersFirst: (Boolean) -> Unit, onHidden: (Boolean) -> Unit, onGrid: (Boolean) -> Unit, onDismiss: () -> Unit) {
+fun SortSheet(sort: SortBy, descending: Boolean, foldersFirst: Boolean, showHidden: Boolean, grid: Boolean, onSort: (SortBy, Boolean) -> Unit, onFoldersFirst: (Boolean) -> Unit, onHidden: (Boolean) -> Unit, onGrid: (Boolean) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Text("View", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 24.dp))
             Text("Sort by", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 6.dp))
-            ChoiceChips(listOf(SortBy.NAME to "Name", SortBy.DATE to "Newest", SortBy.SIZE to "Largest", SortBy.TYPE to "Type"), sort, onSort, Modifier.padding(horizontal = 20.dp))
+            // A new field starts in the order people usually want: names A to Z, newest and largest first.
+            ChoiceChips(
+                listOf(SortBy.NAME to "Name", SortBy.DATE to "Date", SortBy.SIZE to "Size", SortBy.TYPE to "Type"), sort,
+                { s -> onSort(s, s == SortBy.DATE || s == SortBy.SIZE) }, Modifier.padding(horizontal = 20.dp),
+            )
+            Text("Order", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 6.dp))
+            val (up, down) = when (sort) {
+                SortBy.NAME -> "A to Z" to "Z to A"
+                SortBy.DATE -> "Oldest first" to "Newest first"
+                SortBy.SIZE -> "Smallest first" to "Largest first"
+                SortBy.TYPE -> "A to Z" to "Z to A"
+            }
+            ChoiceChips(listOf(false to up, true to down), descending, { d -> onSort(sort, d) }, Modifier.padding(horizontal = 20.dp))
             Text("Layout", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 24.dp, top = 16.dp, bottom = 6.dp))
             ChoiceChips(listOf(false to "List", true to "Grid"), grid, onGrid, Modifier.padding(horizontal = 20.dp))
             Column(Modifier.padding(top = 12.dp)) {

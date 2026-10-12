@@ -31,6 +31,10 @@ data class Recent(
 data class OafSettings(
     val appearance: Appearance = Appearance(),
     val sort: SortBy = SortBy.NAME,
+    /** Z to A, newest, largest first. */
+    val descending: Boolean = false,
+    /** Light or dark pages in the viewers, whatever the rest of the app uses; SYSTEM follows the app. */
+    val viewerMode: Appearance.Mode = Appearance.Mode.SYSTEM,
     val showHidden: Boolean = false,
     val grid: Boolean = false,
     val foldersFirst: Boolean = true,
@@ -55,6 +59,8 @@ class Prefs(private val context: Context) {
         val foldersFirst = booleanPreferencesKey("folders_first")
         val confirmDelete = booleanPreferencesKey("confirm_delete")
         val sort = stringPreferencesKey("sort")
+        val descending = booleanPreferencesKey("descending")
+        val viewerMode = stringPreferencesKey("viewer_mode")
         val hidden = booleanPreferencesKey("hidden")
         val grid = booleanPreferencesKey("grid")
         val recents = stringPreferencesKey("recents")
@@ -74,6 +80,8 @@ class Prefs(private val context: Context) {
             p[K.foldersFirst] = n.foldersFirst
             p[K.confirmDelete] = n.confirmDelete
             p[K.sort] = n.sort.name
+            p[K.descending] = n.descending
+            p[K.viewerMode] = n.viewerMode.name
             p[K.hidden] = n.showHidden
             p[K.grid] = n.grid
             p[K.recents] = json.encodeToString(recentList, n.recents.take(MAX_RECENTS))
@@ -104,6 +112,9 @@ class Prefs(private val context: Context) {
             foldersFirst = this[K.foldersFirst] ?: d.foldersFirst,
             confirmDelete = this[K.confirmDelete] ?: d.confirmDelete,
             sort = this[K.sort]?.let { runCatching { SortBy.valueOf(it) }.getOrNull() } ?: d.sort,
+            // Before there was a direction, dates and sizes always listed the newest and largest first.
+            descending = this[K.descending] ?: (this[K.sort] == SortBy.DATE.name || this[K.sort] == SortBy.SIZE.name),
+            viewerMode = this[K.viewerMode]?.let { runCatching { Appearance.Mode.valueOf(it) }.getOrNull() } ?: d.viewerMode,
             showHidden = this[K.hidden] ?: d.showHidden,
             grid = this[K.grid] ?: d.grid,
             recents = this[K.recents]?.let { runCatching { json.decodeFromString(recentList, it) }.getOrNull() } ?: d.recents,

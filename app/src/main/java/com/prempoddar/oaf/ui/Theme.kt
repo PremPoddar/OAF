@@ -11,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -85,3 +87,24 @@ fun familyColor(kind: FileKind, dark: Boolean): Color = when (kind.family) {
     FileKind.Family.ARCHIVE -> if (dark) Color(0xFFD8BE8C) else Color(0xFF8A6A2B)
     FileKind.Family.OTHER -> if (dark) Color(0xFF9C968C) else Color(0xFF8A847A)
 }
+
+/**
+ * Dark pages from light ones: lightness is turned over but hues are kept, so blue links stay blue
+ * and photos stay recognisable. White paper becomes near-black, black ink a soft white.
+ */
+val NightPage = androidx.compose.ui.graphics.ColorMatrix(
+    floatArrayOf(
+        0.574f * K, -1.43f * K, -0.144f * K, 0f, 255f * K + 20f,
+        -0.426f * K, -0.43f * K, -0.144f * K, 0f, 255f * K + 20f,
+        -0.426f * K, -1.43f * K, 0.856f * K, 0f, 255f * K + 20f,
+        0f, 0f, 0f, 1f, 0f,
+    ),
+)
+private const val K = 0.86f
+
+/** Draws this content with [NightPage] when [on]; for pages whose colours come from the file itself. */
+fun androidx.compose.ui.Modifier.nightPage(on: Boolean): androidx.compose.ui.Modifier =
+    if (!on || android.os.Build.VERSION.SDK_INT < 31) this
+    else this.graphicsLayer {
+        renderEffect = android.graphics.RenderEffect.createColorFilterEffect(android.graphics.ColorMatrixColorFilter(NightPage.values)).asComposeRenderEffect()
+    }

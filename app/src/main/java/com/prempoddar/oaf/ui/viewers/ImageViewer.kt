@@ -72,6 +72,7 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
     val paper = LocalPaper.current
     val chrome = rememberChrome()
     var rotation by remember { mutableFloatStateOf(0f) }
+    val screenPx = with(androidx.compose.ui.platform.LocalConfiguration.current) { (maxOf(screenWidthDp, screenHeightDp) * context.resources.displayMetrics.density).toInt() }
     val loaded by produceState<Loaded?>(null, source) {
         value = withContext(Dispatchers.IO) {
             runCatching {
@@ -84,27 +85,29 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
                     val bmp = Bitmap.createBitmap(w.toInt(), h.toInt(), Bitmap.Config.ARGB_8888)
                     svg.renderToCanvas(android.graphics.Canvas(bmp))
                     Loaded.Still(bmp)
-                } else {
-                    val src = ImageDecoder.createSource(source.local(context))
-                    val d = ImageDecoder.decodeDrawable(src) { decoder, info, _ ->
-                        // Huge photos are scaled to what the screen can use, keeping memory in check.
-                        val max = 4096
-                        val scale = maxOf(info.size.width, info.size.height).toFloat() / max
-                        if (scale > 1) decoder.setTargetSize((info.size.width / scale).toInt(), (info.size.height / scale).toInt())
-                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                    }
+                } else if (mayAnimate(source)) {
+                    val d = ImageDecoder.decodeDrawable(imageSource(context, source)) { decoder, info, _ -> fitInside(decoder, info, 2048) }
                     if (d is AnimatedImageDrawable) Loaded.Animated(d.also { it.start() })
-                    else Loaded.Still(ImageDecoder.decodeBitmap(ImageDecoder.createSource(source.local(context))) { decoder, info, _ ->
-                        val scale = maxOf(info.size.width, info.size.height).toFloat() / 4096
-                        if (scale > 1) decoder.setTargetSize((info.size.width / scale).toInt(), (info.size.height / scale).toInt())
-                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                    })
+                    else Loaded.Still(ImageDecoder.decodeBitmap(imageSource(context, source)) { decoder, info, _ -> fitInside(decoder, info, screenPx) })
+                } else {
+                    // The size of the screen first, decoded straight into graphics memory: quick to
+                    // show. A sharper copy is decoded only if the picture is zoomed into.
+                    Loaded.Still(ImageDecoder.decodeBitmap(imageSource(context, source)) { decoder, info, _ -> fitInside(decoder, info, screenPx) })
                 }
             }.getOrElse { Loaded.Failed(it.message ?: "This image couldn't be decoded") }
         }
     }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    // Zoomed in: the full picture (up to 4096 pixels across), decoded once and kept.
+    val zoomed = scale > 1.4f
+    val sharp by produceState<Bitmap?>(null, source, zoomed) {
+        if (zoomed && value == null && loaded is Loaded.Still) {
+            value = withContext(Dispatchers.IO) {
+                runCatching { ImageDecoder.decodeBitmap(imageSource(context, source)) { d, info, _ -> fitInside(d, info, 4096) } }.getOrNull()
+            }
+        }
+    }
     var menu by remember { mutableStateOf(false) }
     var pendingMime by remember { mutableStateOf("image/png") }
     val scope = rememberCoroutineScope()
@@ -115,7 +118,7 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         scope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    val base = (loaded as? Loaded.Still)?.bitmap ?: ImageDecoder.decodeBitmap(ImageDecoder.createSource(source.local(context))) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
+                    val base = ImageDecoder.decodeBitmap(imageSource(context, source)) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
                     val turned = if (rotation == 0f) base else Bitmap.createBitmap(base, 0, 0, base.width, base.height, android.graphics.Matrix().apply { postRotate(rotation) }, true)
                     val format = when (mime) { "image/jpeg" -> Bitmap.CompressFormat.JPEG; "image/webp" -> if (android.os.Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else @Suppress("DEPRECATION") Bitmap.CompressFormat.WEBP; else -> Bitmap.CompressFormat.PNG }
                     // JPEG has no transparency: transparent areas become white rather than black.
@@ -131,7 +134,7 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
 
     ViewerScaffold(
         title = source.name, subtitle = (loaded as? Loaded.Still)?.bitmap?.let { "${it.width} × ${it.height}" },
-        chrome = chrome, onBack = onBack,
+        chrome = chrome, themeToggle = false, onBack = onBack,
         actions = {
             if (source.kind != FileKind.SVG) IconButton(onClick = { editing = true }) { Icon(Icons.Rounded.Edit, "Edit") }
             IconButton(onClick = { rotation = (rotation + 90f) % 360f }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Rotate") }
@@ -174,10 +177,25 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
             }
             when (val l = loaded) {
                 null -> CircularProgressIndicator()
-                is Loaded.Still -> Image(l.bitmap.asImageBitmap(), source.name, contentScale = ContentScale.Fit, modifier = m)
+                is Loaded.Still -> Image((sharp ?: l.bitmap).asImageBitmap(), source.name, contentScale = ContentScale.Fit, modifier = m)
                 is Loaded.Animated -> AndroidView({ ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER } }, m, update = { it.setImageDrawable(l.drawable) })
                 is Loaded.Failed -> Text(l.reason, color = paper.muted)
             }
         }
     }
+}
+
+/** Read straight from the file or the other app's link; nothing is copied first. */
+private fun imageSource(context: android.content.Context, source: DocSource): ImageDecoder.Source =
+    source.file?.let { ImageDecoder.createSource(it) } ?: ImageDecoder.createSource(context.contentResolver, source.uri)
+
+/** GIFs and WebPs can move; everything else is decoded as a still, which is quicker. */
+private fun mayAnimate(source: DocSource): Boolean {
+    val ext = source.name.substringAfterLast('.', "").lowercase()
+    return ext == "gif" || ext == "webp" || ext == "avif" || source.mime == "image/gif" || source.mime == "image/webp"
+}
+
+private fun fitInside(decoder: ImageDecoder, info: ImageDecoder.ImageInfo, max: Int) {
+    val scale = maxOf(info.size.width, info.size.height).toFloat() / max
+    if (scale > 1) decoder.setTargetSize((info.size.width / scale).toInt().coerceAtLeast(1), (info.size.height / scale).toInt().coerceAtLeast(1))
 }

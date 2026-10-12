@@ -71,14 +71,41 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-fun sortEntries(list: List<Entry>, sort: SortBy, foldersFirst: Boolean): List<Entry> {
-    val byField: Comparator<Entry> = when (sort) {
-        SortBy.NAME -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.file.name }
-        SortBy.DATE -> compareByDescending { it.modified }
-        SortBy.SIZE -> compareByDescending<Entry> { it.size }.thenBy { it.file.name.lowercase() }
-        SortBy.TYPE -> compareBy<Entry> { it.kind?.ordinal ?: -1 }.thenBy { it.file.name.lowercase() }
+fun sortEntries(list: List<Entry>, sort: SortBy, foldersFirst: Boolean, descending: Boolean = false): List<Entry> {
+    val name = compareBy<Entry, String>(NaturalOrder) { it.file.name }
+    val field: Comparator<Entry> = when (sort) {
+        SortBy.NAME -> name
+        SortBy.DATE -> compareBy<Entry> { it.modified }.then(name)
+        SortBy.SIZE -> compareBy<Entry> { it.size }.then(name)
+        // By extension, so all the PDFs sit together, then all the JPGs, and so on.
+        SortBy.TYPE -> compareBy<Entry, String>(String.CASE_INSENSITIVE_ORDER) { if (it.isDir) "" else it.file.extension }.then(name)
     }
-    return list.sortedWith(if (foldersFirst) compareBy<Entry> { !it.isDir }.then(byField) else byField)
+    val ordered = if (descending) field.reversed() else field
+    return list.sortedWith(if (foldersFirst) compareBy<Entry> { !it.isDir }.then(ordered) else ordered)
+}
+
+/** Names as people read them: "file 2" before "file 10", ignoring case. */
+object NaturalOrder : Comparator<String> {
+    override fun compare(a: String, b: String): Int {
+        var i = 0; var j = 0
+        while (i < a.length && j < b.length) {
+            val ca = a[i]; val cb = b[j]
+            if (ca.isDigit() && cb.isDigit()) {
+                val si = i; val sj = j
+                while (i < a.length && a[i].isDigit()) i++
+                while (j < b.length && b[j].isDigit()) j++
+                val na = a.substring(si, i).trimStart('0'); val nb = b.substring(sj, j).trimStart('0')
+                if (na.length != nb.length) return na.length - nb.length
+                val c = na.compareTo(nb)
+                if (c != 0) return c
+            } else {
+                val c = ca.lowercaseChar().compareTo(cb.lowercaseChar())
+                if (c != 0) return c
+                i++; j++
+            }
+        }
+        return (a.length - i) - (b.length - j)
+    }
 }
 
 /**
@@ -130,7 +157,7 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
                 dir.walkTopDown().onEnter { settings.showHidden || !it.name.startsWith(".") || it == dir }.maxDepth(12)
                     .filter { it != dir && it.name.lowercase().contains(q) }.take(1000).toList()
             } else dir.listFiles()?.toList().orEmpty()
-            sortEntries(files.filter { settings.showHidden || !it.name.startsWith(".") }.map(::entryOf), settings.sort, settings.foldersFirst)
+            sortEntries(files.filter { settings.showHidden || !it.name.startsWith(".") }.map(::entryOf), settings.sort, settings.foldersFirst, settings.descending)
         }
     }
     val list = entries
@@ -226,8 +253,8 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
     }
 
     if (sheet) SortSheet(
-        settings.sort, settings.foldersFirst, settings.showHidden, settings.grid,
-        onSort = { s -> scope.launch { AppGraph.prefs.update { it.copy(sort = s) } } },
+        settings.sort, settings.descending, settings.foldersFirst, settings.showHidden, settings.grid,
+        onSort = { s, d -> scope.launch { AppGraph.prefs.update { it.copy(sort = s, descending = d) } } },
         onFoldersFirst = { v -> scope.launch { AppGraph.prefs.update { it.copy(foldersFirst = v) } } },
         onHidden = { v -> scope.launch { AppGraph.prefs.update { it.copy(showHidden = v) } } },
         onGrid = { v -> scope.launch { AppGraph.prefs.update { it.copy(grid = v) } } },

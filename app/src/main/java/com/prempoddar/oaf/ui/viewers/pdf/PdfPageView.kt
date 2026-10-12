@@ -142,10 +142,15 @@ internal fun PdfPageView(state: PdfState, index: Int, widthPx: Int, paper: Paper
     val accent = paper.accent
     val ink = Color(0xFF000000.toInt() or state.color)
 
-    BoxWithConstraints(modifier.aspectRatio(info.width / info.height).shadow(2.dp).background(Color.White)) {
+    BoxWithConstraints(modifier.aspectRatio(info.width / info.height).shadow(2.dp).background(if (paper.dark) Color(0xFF141414) else Color.White)) {
         val w = constraints.maxWidth.toFloat(); val h = constraints.maxHeight.toFloat()
         fun norm(o: Offset) = (o.x / w).coerceIn(0f, 1f) to (o.y / h).coerceIn(0f, 1f)
-        shown?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
+        shown?.let {
+            Image(
+                it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds,
+                colorFilter = if (paper.dark) androidx.compose.ui.graphics.ColorFilter.colorMatrix(com.prempoddar.oaf.ui.NightPage) else null,
+            )
+        }
         Canvas(
             Modifier.fillMaxSize().pointerInput(index) {
                 pageGestures(

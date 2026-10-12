@@ -420,7 +420,9 @@ private fun HtmlView(html: String, top: androidx.compose.ui.unit.Dp, onTap: () -
                 w.loadDataWithBaseURL(base ?: "file:///android_res/", html, "text/html", "utf-8", null)
             }
         },
-        modifier = Modifier.fillMaxSize().padding(top = top + 56.dp),
+        // A web page uses the whole screen below the status bar, the title bar sliding over it as
+        // a browser's does; Markdown keeps clear of the bar.
+        modifier = Modifier.fillMaxSize().padding(top = if (page) top else top + 56.dp),
     )
 }
 

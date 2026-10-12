@@ -176,7 +176,9 @@ fun PdfScreen(source: DocSource, onBack: () -> Unit) {
         value = Opening.Loading
         value = withContext(Dispatchers.IO) {
             try {
-                val work = File(context.cacheDir, "pdf/${source.uri.toString().hashCode().toUInt()}")
+                // Each opening gets its own folder: closing an earlier view of the same PDF deletes
+                // its folder, and must not take this one's working copy with it.
+                val work = File(context.cacheDir, "pdf/${source.uri.toString().hashCode().toUInt()}-${System.nanoTime()}")
                 Opening.Ready(PdfSession.open(source.local(context), work, password))
             } catch (e: PdfSession.PasswordNeeded) {
                 Opening.NeedsPassword(wrong = password != null)

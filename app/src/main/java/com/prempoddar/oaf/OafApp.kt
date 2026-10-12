@@ -17,6 +17,8 @@ class OafApp : Application() {
             runCatching { AppGraph.bin.expire(System.currentTimeMillis(), 30L * 24 * 60 * 60 * 1000) }
             // Files other apps handed over are kept for a month.
             filesDir.resolve("received").listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 30L * 86_400_000 }?.forEach { it.deleteRecursively() }
+            // PDF working copies left behind if the app was closed while one was open.
+            cacheDir.resolve("pdf").listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86_400_000 }?.forEach { it.deleteRecursively() }
             cacheDir.resolve("open").listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86_400_000 }?.forEach { it.deleteRecursively() }
         }
     }

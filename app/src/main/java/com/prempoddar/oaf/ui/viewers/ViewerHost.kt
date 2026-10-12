@@ -10,6 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -51,5 +54,14 @@ fun ViewerHost(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> Uni
         return
     }
     LaunchedEffect(s) { AppGraph.prefs.opened(s.uri.toString(), s.name, s.kind.name) }
-    Engines.viewerFor(s.kind)(s, onBack, onOpen)
+    // Where another engine can open the file too, a button in the title bar swaps between them.
+    var other by remember(s) { mutableStateOf(false) }
+    val alternative = com.prempoddar.oaf.engine.WebEngine.pageFor(s.kind)
+    val switch = alternative?.let { (_, label) ->
+        com.prempoddar.oaf.ui.EngineSwitch(if (other) "OAF's own viewer" else label) { other = !other }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(com.prempoddar.oaf.ui.LocalEngineSwitch provides switch) {
+        if (other) com.prempoddar.oaf.engine.WebEngine.viewer(s.kind)!!(s, onBack, onOpen)
+        else Engines.viewerFor(s.kind)(s, onBack, onOpen)
+    }
 }

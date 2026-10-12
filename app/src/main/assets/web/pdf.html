@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
+<link rel="stylesheet" href="base.css">
+<style>
+  #pages { padding: 8px; }
+  .page { margin: 0 auto 10px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.3); width: 100%; position: relative; }
+  .page canvas { width: 100%; height: 100%; display: block; }
+</style>
+<script src="pdf.min.js"></script>
+<!-- Loaded in the page itself, so pdf.js works without a separate worker (not allowed for app files). -->
+<script src="pdf.worker.min.js"></script>
+<script src="common.js"></script>
+</head><body><div id="pages"></div>
+<script>
+load().then(function (bytes) {
+  // isEvalSupported off: fonts are never turned into code, closing a known pdf.js hole.
+  return pdfjsLib.getDocument({ data: new Uint8Array(bytes), isEvalSupported: false, useSystemFonts: true }).promise;
+}).then(function (pdf) {
+  var box = document.getElementById('pages');
+  var holders = [];
+  var chain = Promise.resolve();
+  for (var i = 1; i <= pdf.numPages; i++) (function (n) {
+    chain = chain.then(function () { return pdf.getPage(n); }).then(function (page) {
+      var vp = page.getViewport({ scale: 1 });
+      var div = document.createElement('div');
+      div.className = 'page paper';
+      div.style.aspectRatio = vp.width + ' / ' + vp.height;
+      div.page = page;
+      box.appendChild(div);
+      holders.push(div);
+      watcher.observe(div);
+      if (n === 1) done();
+    });
+  })(i);
+  // Pages are drawn when they come near the screen, at the screen's sharpness.
+  var watcher = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      var div = e.target;
+      if (!e.isIntersecting || div.drawn) return;
+      div.drawn = true;
+      var page = div.page;
+      var vp1 = page.getViewport({ scale: 1 });
+      var scale = div.clientWidth * (window.devicePixelRatio || 1) * 1.5 / vp1.width;
+      var vp = page.getViewport({ scale: scale });
+      var canvas = document.createElement('canvas');
+      canvas.width = vp.width; canvas.height = vp.height;
+      div.appendChild(canvas);
+      page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
+    });
+  }, { rootMargin: '150% 0px' });
+  return chain;
+}).catch(done);
+</script></body></html>

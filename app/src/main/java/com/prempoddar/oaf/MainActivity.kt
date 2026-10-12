@@ -100,6 +100,8 @@ class MainActivity : ComponentActivity() {
                             "OAF", "Open all files: documents, sheets, slides, books, media and archives, all on your phone.",
                             icon = { LayeredIcon(R.drawable.ic_launcher_background, R.drawable.ic_launcher_foreground) },
                             credits = listOf(
+                                Credit("MuPDF", "AGPL 3.0"), Credit("pdf.js", "Apache 2.0"),
+                                Credit("docx-preview", "Apache 2.0"), Credit("JSZip", "MIT"), Credit("SheetJS", "Apache 2.0"),
                                 Credit("PdfBox-Android", "Apache 2.0"), Credit("Apache POI", "Apache 2.0"),
                                 Credit("Apache Commons Compress", "Apache 2.0"), Credit("XZ for Java", "Public domain"),
                                 Credit("junrar", "UnRAR licence"), Credit("commonmark-java", "BSD 2-Clause"),

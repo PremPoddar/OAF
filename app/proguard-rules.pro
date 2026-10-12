@@ -24,3 +24,6 @@
 -keepclassmembers class com.prempoddar.oaf.** { *** Companion; }
 -keepclasseswithmembers class com.prempoddar.oaf.** { kotlinx.serialization.KSerializer serializer(...); }
 -keep class org.apache.logging.log4j.** { *; }
+
+# MuPDF calls back into these from native code.
+-keep class com.artifex.mupdf.fitz.** { *; }

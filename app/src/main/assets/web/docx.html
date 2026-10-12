@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
+<link rel="stylesheet" href="base.css">
+<style>
+  .docx-wrapper { background: transparent !important; padding: 8px !important; }
+  .docx-wrapper > section.docx { margin: 0 auto 10px !important; box-shadow: 0 1px 3px rgba(0,0,0,.3) !important; }
+</style>
+<script src="jszip.min.js"></script>
+<script src="docx-preview.min.js"></script>
+<script src="common.js"></script>
+</head><body><div id="doc"></div>
+<script>
+load().then(function (bytes) {
+  var box = document.getElementById('doc');
+  return docx.renderAsync(bytes, box, null, {
+    inWrapper: true, breakPages: true, ignoreLastRenderedPageBreak: false,
+    renderHeaders: true, renderFooters: true, renderFootnotes: true, renderEndnotes: true, useBase64URL: true,
+  }).then(function () {
+    var pages = box.querySelectorAll('section.docx');
+    pages.forEach(function (p) { p.classList.add('paper'); });
+    // Pages are as wide as on paper; shrink them to the screen, keeping their layout.
+    var widest = 0;
+    pages.forEach(function (p) { widest = Math.max(widest, p.offsetWidth); });
+    if (widest > 0) box.style.zoom = Math.min(1, (window.innerWidth - 16) / widest);
+    done();
+  });
+}).catch(done);
+</script></body></html>

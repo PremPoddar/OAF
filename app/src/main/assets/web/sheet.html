@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
+<link rel="stylesheet" href="base.css">
+<style>
+  #tabs { position: sticky; top: 0; display: flex; gap: 6px; overflow-x: auto; padding: 8px; background: var(--page); z-index: 2; }
+  #tabs button { border: 1px solid var(--accent); background: transparent; color: var(--ink); border-radius: 16px; padding: 6px 14px; white-space: nowrap; font-size: 14px; }
+  #tabs button.on { background: var(--accent); color: var(--page); }
+  #sheet { overflow: auto; padding: 0 8px 80px; }
+  table { border-collapse: collapse; font-size: 13px; }
+  td { border: 1px solid rgba(128,128,128,.35); padding: 4px 8px; white-space: nowrap; }
+  tr:first-child td { font-weight: 600; }
+  .dark td { border-color: rgba(255,255,255,.18); }
+</style>
+<script src="xlsx.full.min.js"></script>
+<script src="common.js"></script>
+</head><body><div id="tabs"></div><div id="sheet"></div>
+<script>
+load().then(function (bytes) {
+  var book = XLSX.read(new Uint8Array(bytes), { type: 'array', cellDates: true, dense: true });
+  var tabs = document.getElementById('tabs'), sheet = document.getElementById('sheet');
+  function show(name, button) {
+    sheet.innerHTML = XLSX.utils.sheet_to_html(book.Sheets[name], { header: '', footer: '' });
+    Array.prototype.forEach.call(tabs.children, function (b) { b.classList.toggle('on', b === button); });
+  }
+  book.SheetNames.forEach(function (name, i) {
+    var b = document.createElement('button');
+    b.textContent = name;
+    b.onclick = function () { show(name, b); };
+    tabs.appendChild(b);
+    if (i === 0) show(name, b);
+  });
+  if (book.SheetNames.length < 2) tabs.style.display = 'none';
+  done();
+}).catch(done);
+</script></body></html>

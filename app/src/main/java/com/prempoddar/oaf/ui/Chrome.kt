@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.SwapHoriz
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -50,6 +51,11 @@ class ChromeState(val visible: MutableState<Boolean>) {
 
 @Composable
 fun rememberChrome(startVisible: Boolean = true) = remember { ChromeState(mutableStateOf(startVisible)) }
+
+/** Offered when another engine can open the file: what it's called, and how to switch. */
+class EngineSwitch(val label: String, val toggle: () -> Unit)
+
+val LocalEngineSwitch = androidx.compose.runtime.staticCompositionLocalOf<EngineSwitch?> { null }
 
 /**
  * The quiet chrome: the document fills the screen; a title bar and a floating pill toolbar slide
@@ -84,6 +90,9 @@ fun ViewerScaffold(
                     Column(Modifier.weight(1f)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1)
+                    }
+                    LocalEngineSwitch.current?.let { sw ->
+                        IconButton(onClick = sw.toggle) { Icon(Icons.Rounded.SwapHoriz, "Open with ${sw.label}") }
                     }
                     if (themeToggle) {
                         val scope = androidx.compose.runtime.rememberCoroutineScope()

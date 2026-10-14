@@ -15,8 +15,6 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        // Phones only: MuPDF's native code would otherwise come for every kind of processor.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     buildTypes {
@@ -71,7 +69,6 @@ android {
 
 dependencies {
     implementation(libs.material.color.utilities)
-    implementation(libs.mupdf.fitz)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)

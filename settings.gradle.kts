@@ -16,10 +16,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // MuPDF, from its makers; only their packages are fetched from here.
-        maven("https://maven.ghostscript.com") {
-            content { includeGroup("com.artifex.mupdf") }
-        }
     }
 }
 

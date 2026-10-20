@@ -18,6 +18,7 @@ object AppGraph {
     val prefs by lazy { Prefs(app) }
     /** Deleted files wait here (on the same storage, so deleting is instant) until restored or emptied. */
     val bin by lazy { Bin(File(app.getExternalFilesDir(null) ?: app.filesDir, "bin")) }
+    val servers by lazy { com.prempoddar.oaf.files.remote.Servers(File(app.filesDir, "network")) }
 
     val clipboard by lazy { com.prempoddar.oaf.ui.browser.Clipboard() }
 

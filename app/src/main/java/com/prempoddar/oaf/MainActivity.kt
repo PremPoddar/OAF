@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
                     HomeTarget.Bin -> nav.navigate("bin")
                     HomeTarget.Storage -> nav.navigate("storage")
                     HomeTarget.Settings -> nav.navigate("settings")
+                    HomeTarget.Network -> nav.navigate("network")
                 }
                 val back: () -> Unit = { nav.popBackStack() }
                 NavHost(
@@ -85,6 +86,11 @@ class MainActivity : ComponentActivity() {
                     composable("category/{c}") { e -> CategoryScreen(Category.valueOf(e.arguments!!.getString("c")!!), onOpen = ::open, onBack = back) }
                     composable("apps") { AppsScreen(onBack = back) }
                     composable("bin") { BinScreen(onBack = back) }
+                    composable("network") { com.prempoddar.oaf.ui.browser.NetworkScreen(onBack = back, onOpenServer = { sv -> nav.navigate("remote/${sv.id}") }) }
+                    composable("remote/{id}") { e ->
+                        val server = AppGraph.servers.get(e.arguments!!.getString("id")!!)
+                        if (server == null) LaunchedEffect(Unit) { back() } else com.prempoddar.oaf.ui.browser.RemoteScreen(server, onBack = back, onOpen = ::open)
+                    }
                     composable("storage") { StorageScreen(onBack = back) }
                     composable("settings") {
                         SettingsScreen(
@@ -107,6 +113,7 @@ class MainActivity : ComponentActivity() {
                                 Credit("Apache Commons Compress", "Apache 2.0"), Credit("XZ for Java", "Public domain"),
                                 Credit("junrar", "UnRAR licence"), Credit("commonmark-java", "BSD 2-Clause"),
                                 Credit("AndroidSVG", "Apache 2.0"), Credit("AndroidX Media3", "Apache 2.0"),
+                                Credit("Apache Commons Net", "Apache 2.0"), Credit("JSch", "BSD"), Credit("SMBJ", "Apache 2.0"), Credit("OkHttp", "Apache 2.0"),
                                 Credit("Literata, Inter, JetBrains Mono", "SIL Open Font License"),
                             ),
                             onBack = back,

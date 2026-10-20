@@ -94,6 +94,10 @@ dependencies {
     implementation(libs.poi)
     implementation(libs.poi.scratchpad)
     implementation(libs.commons.compress)
+    implementation(libs.commons.net)
+    implementation(libs.jsch)
+    implementation(libs.smbj) { exclude(group = "org.bouncycastle", module = "bcprov-jdk18on") }
+    implementation(libs.okhttp)
     implementation(libs.xz)
     implementation(libs.junrar)
     implementation(libs.zip4j)

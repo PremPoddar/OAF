@@ -28,6 +28,10 @@ robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
 
 [libraries]
+commons-net = { group = "commons-net", name = "commons-net", version = "3.11.1" }
+jsch = { group = "com.github.mwiede", name = "jsch", version = "0.2.20" }
+smbj = { group = "com.hierynomus", name = "smbj", version = "0.13.0" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "4.12.0" }
 mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "docScanner" }
 androidx-palette = { group = "androidx.palette", name = "palette", version.ref = "palette" }
 material-color-utilities = { group = "com.materialkolor", name = "material-color-utilities-android", version.ref = "materialColor" }

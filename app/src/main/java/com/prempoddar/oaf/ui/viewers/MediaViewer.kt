@@ -174,6 +174,8 @@ private fun itemFor(f: File, video: Boolean, subtitles: List<File> = if (video) 
 /** Just the file that was opened, so playback starts at once. */
 private fun firstItem(source: DocSource, video: Boolean): MediaItem = source.file?.let { itemFor(it, video) }
     ?: MediaItem.Builder().setUri(source.uri).setMediaId(source.uri.toString())
+        // Streams named only by their type (no .m3u8 or .mpd in the link) need it said.
+        .apply { source.mime?.lowercase()?.let { m -> if ("mpegurl" in m) setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) else if ("dash" in m) setMimeType(androidx.media3.common.MimeTypes.APPLICATION_MPD) } }
         .setMediaMetadata(MediaMetadata.Builder().setTitle(source.name.substringBeforeLast('.')).build()).build()
 
 /** The rest of the folder, before and after the opened file, read off the main thread. */
@@ -198,8 +200,12 @@ private suspend fun Player.fillQueue(source: DocSource, video: Boolean) {
  * lock-screen controls. Videos get their own player on this screen.
  */
 @OptIn(UnstableApi::class)
+private fun cantEditStream(context: android.content.Context) =
+    android.widget.Toast.makeText(context, "This is playing from a link. Save it to the phone first to edit it.", android.widget.Toast.LENGTH_LONG).show()
+
 @Composable
 fun MediaViewer(source: DocSource, onBack: () -> Unit) {
+    val context = LocalContext.current
     var editing by remember { mutableStateOf(false) }
     var editAs by remember { mutableStateOf<MediaOutput?>(null) }
     if (editing) {
@@ -207,7 +213,6 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
         return
     }
     if (source.kind == FileKind.VIDEO) {
-        val context = LocalContext.current
         val player = remember {
             ExoPlayer.Builder(context)
                 .setAudioAttributes(androidx.media3.common.AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
@@ -222,7 +227,7 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
         }
         DisposableEffect(Unit) { onDispose { player.release() } }
         LaunchedEffect(player) { player.fillQueue(source, video = true) }
-        VideoPlayer(rememberPlayerState(player), source, onBack, onEdit = { as_ -> player.pause(); editAs = as_; editing = true })
+        VideoPlayer(rememberPlayerState(player), source, onBack, onEdit = { as_ -> if (source.isStream) cantEditStream(context) else { player.pause(); editAs = as_; editing = true } })
         return
     }
     val controller = rememberMediaController()
@@ -240,7 +245,7 @@ fun MediaViewer(source: DocSource, onBack: () -> Unit) {
             controller.fillQueue(source, video = false)
         } else controller.play()
     }
-    AudioPlayer(rememberPlayerState(controller), source, onBack, onEdit = { as_ -> controller.pause(); editAs = as_; editing = true })
+    AudioPlayer(rememberPlayerState(controller), source, onBack, onEdit = { as_ -> if (source.isStream) cantEditStream(context) else { controller.pause(); editAs = as_; editing = true } })
 }
 
 // ---------------------------------------------------------------- shared

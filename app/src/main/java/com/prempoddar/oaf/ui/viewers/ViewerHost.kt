@@ -29,7 +29,8 @@ fun ViewerHost(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> Uni
     // Null while checking; a failure means the file can't be read at all.
     val detected by produceState<Result<DocSource>?>(null, source) {
         value = withContext(Dispatchers.IO) {
-            runCatching { source.open(context).close() }.fold(
+            // A link streams in the player; there's nothing to check by reading it first.
+            runCatching { if (!source.isStream) source.open(context).close() }.fold(
                 onSuccess = { Result.success(runCatching { source.detect(context) }.getOrElse { source }) },
                 onFailure = { Result.failure(it) },
             )
@@ -53,7 +54,8 @@ fun ViewerHost(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> Uni
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         return
     }
-    LaunchedEffect(s) { AppGraph.prefs.opened(s.uri.toString(), s.name, s.kind.name) }
+    // Links usually stop working once the app that offered them closes, so they aren't kept in Recents.
+    LaunchedEffect(s) { if (!s.isStream) AppGraph.prefs.opened(s.uri.toString(), s.name, s.kind.name) }
     // Where another engine can open the file too, a button in the title bar swaps between them.
     var other by remember(s) { mutableStateOf(false) }
     val alternative = com.prempoddar.oaf.engine.WebEngine.pageFor(s.kind)

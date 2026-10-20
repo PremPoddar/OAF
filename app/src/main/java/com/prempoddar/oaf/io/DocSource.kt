@@ -53,7 +53,19 @@ class DocSource(
         return copy
     }
 
+    /** A video or audio link another app asked OAF to play; it streams and is never read here. */
+    val isStream get() = uri.scheme == "http" || uri.scheme == "https"
+
     fun detect(context: Context): DocSource {
+        if (isStream) {
+            val m = mime.orEmpty().lowercase()
+            kind = when {
+                m.startsWith("audio/") -> FileKind.AUDIO
+                m.startsWith("video/") || "mpegurl" in m || "dash" in m -> FileKind.VIDEO
+                else -> Detector.detect(name, mime, ByteArray(0)).kind.takeIf { it == FileKind.AUDIO || it == FileKind.VIDEO } ?: FileKind.VIDEO
+            }
+            return this
+        }
         val head = runCatching { open(context).use { s -> s.readNBytesCompat(8192) } }.getOrDefault(ByteArray(0))
         val r = Detector.detect(name, mime, head, zipEntries = { zipEntries(context) }, zipText = { zipText(context, it) })
         kind = r.kind

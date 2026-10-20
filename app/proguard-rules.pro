@@ -24,3 +24,5 @@
 -keepclassmembers class com.prempoddar.oaf.** { *** Companion; }
 -keepclasseswithmembers class com.prempoddar.oaf.** { kotlinx.serialization.KSerializer serializer(...); }
 -keep class org.apache.logging.log4j.** { *; }
+# Web pages call these bridge methods by name.
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }

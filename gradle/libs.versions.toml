@@ -28,6 +28,9 @@ robolectric = "4.14.1"
 androidxTestCore = "1.6.1"
 
 [libraries]
+mlkit-subject = { group = "com.google.android.gms", name = "play-services-mlkit-subject-segmentation", version = "16.0.0-beta1" }
+mlkit-text = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version = "19.0.1" }
+exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version = "1.3.7" }
 commons-net = { group = "commons-net", name = "commons-net", version = "3.11.1" }
 jsch = { group = "com.github.mwiede", name = "jsch", version = "0.2.20" }
 smbj = { group = "com.hierynomus", name = "smbj", version = "0.13.0" }

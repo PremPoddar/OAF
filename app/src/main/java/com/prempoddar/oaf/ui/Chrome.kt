@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -86,17 +87,17 @@ fun ViewerScaffold(
         AnimatedVisibility(chrome.visible.value, enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
             Surface(color = paper.chrome, shadowElevation = 2.dp) {
                 Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                    IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                     Column(Modifier.weight(1f)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1)
                     }
                     LocalEngineSwitch.current?.let { sw ->
-                        IconButton(onClick = sw.toggle) { Icon(Icons.Rounded.SwapHoriz, "Open with ${sw.label}") }
+                        IconButton(onClick = tap(sw.toggle)) { Icon(Icons.Rounded.SwapHoriz, "Open with ${sw.label}") }
                     }
                     if (themeToggle) {
                         val scope = androidx.compose.runtime.rememberCoroutineScope()
-                        IconButton(onClick = {
+                        IconButton(onClick = tap {
                             val next = if (paper.dark) com.prempoddar.oaf.ui.design.Appearance.Mode.LIGHT else com.prempoddar.oaf.ui.design.Appearance.Mode.DARK
                             scope.launch { com.prempoddar.oaf.AppGraph.prefs.update { it.copy(viewerMode = next) } }
                         }) {

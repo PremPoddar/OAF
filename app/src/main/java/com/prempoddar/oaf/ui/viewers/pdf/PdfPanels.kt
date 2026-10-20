@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers.pdf
 
+import com.prempoddar.oaf.ui.design.tap
 import android.graphics.Bitmap
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
@@ -86,11 +87,11 @@ internal fun SignaturePad(saved: Bitmap?, onDismiss: () -> Unit, onUse: (Bitmap)
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (saved != null) TextButton(onClick = { onUse(saved) }) { Text("Use saved") }
-                    TextButton(onClick = { strokes.clear() }) { Text("Clear") }
+                    if (saved != null) TextButton(onClick = tap { onUse(saved) }) { Text("Use saved") }
+                    TextButton(onClick = tap { strokes.clear() }) { Text("Clear") }
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
-                    TextButton(enabled = strokes.isNotEmpty(), onClick = { render(strokes, dims[0], dims[1])?.let(onUse) }) { Text("Use") }
+                    TextButton(onClick = tap(onDismiss)) { Text("Cancel") }
+                    TextButton(enabled = strokes.isNotEmpty(), onClick = tap { render(strokes, dims[0], dims[1])?.let(onUse) }) { Text("Use") }
                 }
             }
         }

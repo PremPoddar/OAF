@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers.pdf
 
+import com.prempoddar.oaf.ui.design.sliding
+import com.prempoddar.oaf.ui.design.tap
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -217,8 +219,8 @@ private fun PasswordPrompt(wrong: Boolean, onCancel: () -> Unit, onOpen: (String
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onOpen(text) }) { Text("Open") } },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = tap { onOpen(text) }) { Text("Open") } },
+        dismissButton = { TextButton(onClick = tap(onCancel)) { Text("Cancel") } },
     )
 }
 
@@ -459,33 +461,33 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
         chrome = chrome, autoHide = state.mode == PdfMode.READ && !searching && state.selection == null,
         onBack = { if (dirty) confirmLeave = true else onBack() },
         actions = {
-            if (state.canUndo) IconButton(onClick = { state.undo() }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
-            if (state.canRedo) IconButton(onClick = { state.redo() }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
-            if (dirty) IconButton(enabled = !saving, onClick = { save() }) {
+            if (state.canUndo) IconButton(onClick = tap { state.undo() }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
+            if (state.canRedo) IconButton(onClick = tap { state.redo() }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
+            if (dirty) IconButton(enabled = !saving, onClick = tap { save() }) {
                 if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.Save, "Save")
-            } else IconButton(onClick = { searching = true; chrome.show() }) { Icon(Icons.Rounded.Search, "Find") }
+            } else IconButton(onClick = tap { searching = true; chrome.show() }) { Icon(Icons.Rounded.Search, "Find") }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                    if (dirty) DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; searching = true })
-                    DropdownMenuItem(text = { Text("Contents") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Toc, null) }, onClick = { menu = false; outlineOpen = true })
-                    DropdownMenuItem(text = { Text("Go to page…") }, onClick = { menu = false; goTo = true })
-                    DropdownMenuItem(text = { Text("Fit width") }, onClick = { menu = false; zoom = 1f })
+                    if (dirty) DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = tap { menu = false; searching = true })
+                    DropdownMenuItem(text = { Text("Contents") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Toc, null) }, onClick = tap { menu = false; outlineOpen = true })
+                    DropdownMenuItem(text = { Text("Go to page…") }, onClick = tap { menu = false; goTo = true })
+                    DropdownMenuItem(text = { Text("Fit width") }, onClick = tap { menu = false; zoom = 1f })
                     HorizontalDivider()
-                    DropdownMenuItem(text = { Text("Save a copy…") }, onClick = { menu = false; saveCopy.launch(source.name) })
-                    if (perms.modify) DropdownMenuItem(text = { Text("Make smaller") }, onClick = {
+                    DropdownMenuItem(text = { Text("Save a copy…") }, onClick = tap { menu = false; saveCopy.launch(source.name) })
+                    if (perms.modify) DropdownMenuItem(text = { Text("Make smaller") }, onClick = tap {
                         menu = false
                         state.change("make it smaller") { doc ->
                             val n = PdfPages.compressImages(doc)
                             scope.launch { Toast.makeText(context, if (n == 0) "No large pictures to shrink" else "Shrank $n picture${if (n == 1) "" else "s"} — save to keep it", Toast.LENGTH_LONG).show() }
                         }
                     })
-                    if (perms.modify) DropdownMenuItem(text = { Text("Add a watermark…") }, onClick = { menu = false; watermarking = true })
-                    DropdownMenuItem(text = { Text("Split into single pages…") }, onClick = { menu = false; splitInto.launch(null) })
-                    if (perms.print) DropdownMenuItem(text = { Text("Print…") }, onClick = { menu = false; print(context, source.name, state) })
-                    if (state.fields.isNotEmpty() && perms.modify) DropdownMenuItem(text = { Text("Flatten form") }, onClick = { menu = false; state.change("flatten the form") { PdfForms.flatten(it) } })
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
-                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    if (perms.modify) DropdownMenuItem(text = { Text("Add a watermark…") }, onClick = tap { menu = false; watermarking = true })
+                    DropdownMenuItem(text = { Text("Split into single pages…") }, onClick = tap { menu = false; splitInto.launch(null) })
+                    if (perms.print) DropdownMenuItem(text = { Text("Print…") }, onClick = tap { menu = false; print(context, source.name, state) })
+                    if (state.fields.isNotEmpty() && perms.modify) DropdownMenuItem(text = { Text("Flatten form") }, onClick = tap { menu = false; state.change("flatten the form") { PdfForms.flatten(it) } })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = tap { menu = false; shareSource(context, source) })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openElsewhere(context, source) })
                 }
             }
         },
@@ -630,7 +632,7 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { outlineOpen = false }) { Text("Close") } },
+            confirmButton = { TextButton(onClick = tap { outlineOpen = false }) { Text("Close") } },
         )
     }
 
@@ -640,8 +642,8 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
             onDismissRequest = { watermarking = false },
             title = { Text("Watermark") },
             text = { OutlinedTextField(mark, { mark = it.take(40) }, singleLine = true, label = { Text("Text across every page") }) },
-            confirmButton = { TextButton(enabled = mark.isNotBlank(), onClick = { watermarking = false; val t = mark.trim(); state.change("add the watermark") { PdfPages.watermark(it, t) } }) { Text("Add") } },
-            dismissButton = { TextButton(onClick = { watermarking = false }) { Text("Cancel") } },
+            confirmButton = { TextButton(enabled = mark.isNotBlank(), onClick = tap { watermarking = false; val t = mark.trim(); state.change("add the watermark") { PdfPages.watermark(it, t) } }) { Text("Add") } },
+            dismissButton = { TextButton(onClick = tap { watermarking = false }) { Text("Cancel") } },
         )
     }
     if (goTo) TextDialog("Go to page", "", multiline = false, number = true, onDismiss = { goTo = false }) { text ->
@@ -654,8 +656,8 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
             onDismissRequest = { confirmLeave = false },
             title = { Text("Save changes?") },
             text = { Text("You've changed ${source.name}." + if (session.encrypted) " It stays protected with its password." else "") },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; save(then = onBack) }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { confirmLeave = false; onBack() }) { Text("Discard") } },
+            confirmButton = { TextButton(onClick = tap { confirmLeave = false; save(then = onBack) }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = tap { confirmLeave = false; onBack() }) { Text("Discard") } },
         )
     }
 }
@@ -731,9 +733,9 @@ private fun SearchBar(query: String, state: PdfState, top: Dp, onQuery: (String)
                 decorationBox = { inner -> if (query.isEmpty()) Text("Find in PDF", color = paper.faint); inner() },
             )
             Text(if (state.hits.isEmpty()) "0" else "${state.hit + 1}/${state.hits.size}", style = MaterialTheme.typography.labelMedium, color = paper.muted)
-            IconButton(onClick = { onStep(-1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
-            IconButton(onClick = { onStep(1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Close") }
+            IconButton(onClick = tap { onStep(-1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
+            IconButton(onClick = tap { onStep(1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
+            IconButton(onClick = tap(onClose)) { Icon(Icons.Rounded.Close, "Close") }
         }
     }
 }
@@ -751,7 +753,7 @@ private fun ActionBar(content: @Composable androidx.compose.foundation.layout.Ro
 @Composable
 private fun Act(icon: ImageVector, label: String, on: Boolean = false, enabled: Boolean = true, click: () -> Unit) {
     val paper = LocalPaper.current
-    IconButton(enabled = enabled, onClick = click) { Icon(icon, label, tint = if (on) paper.accent else if (enabled) paper.ink else paper.faint) }
+    IconButton(enabled = enabled, onClick = tap(click)) { Icon(icon, label, tint = if (on) paper.accent else if (enabled) paper.ink else paper.faint) }
 }
 
 /** The mode switcher, with the active mode's tools above it. */
@@ -786,7 +788,7 @@ private fun ModeTools(
                     if (state.tool in setOf(Tool.PEN, Tool.RECT, Tool.ELLIPSE, Tool.ARROW)) {
                         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("Width", style = MaterialTheme.typography.labelMedium, color = paper.muted)
-                            Slider(state.strokeWidth, { state.strokeWidth = it }, valueRange = 0.5f..8f, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+                            Slider(state.strokeWidth, sliding(0.5f..8f) { state.strokeWidth = it }, valueRange = 0.5f..8f, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
                         }
                     }
                     if (state.tool in setOf(Tool.PEN, Tool.MARKER, Tool.RECT, Tool.ELLIPSE, Tool.ARROW)) {
@@ -821,7 +823,7 @@ private fun ModeTools(
                     Act(Icons.Rounded.NoteAdd, "Insert blank page") { onPages("blank") }
                     Act(Icons.Rounded.Delete, "Delete", enabled = any && pagesSelected.size < state.pages.size) { onPages("delete") }
                     Act(Icons.Rounded.PostAdd, "Save selected pages as a PDF", enabled = any) { onPages("extract") }
-                    TextButton(onClick = { onPages("append") }) { Text("Add PDF…") }
+                    TextButton(onClick = tap { onPages("append") }) { Text("Add PDF…") }
                 }
                 PdfMode.READ -> Unit
             }
@@ -829,7 +831,7 @@ private fun ModeTools(
                 @Composable
                 fun Mode(m: PdfMode, label: String, icon: ImageVector, allowed: Boolean) = FilterChip(
                     selected = state.mode == m, enabled = allowed,
-                    onClick = { state.mode = m; state.tool = Tool.NONE; state.picked = null; state.selection = null },
+                    onClick = tap { state.mode = m; state.tool = Tool.NONE; state.picked = null; state.selection = null },
                     label = { Text(label) }, leadingIcon = { Icon(icon, null, Modifier.size(18.dp)) },
                 )
                 Mode(PdfMode.READ, "Read", Icons.Rounded.MenuBook, true)
@@ -855,8 +857,8 @@ private fun TextDialog(title: String, initial: String, multiline: Boolean, numbe
                 modifier = Modifier.fillMaxWidth(),
             )
         },
-        confirmButton = { TextButton(onClick = { onDone(text) }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = tap { onDone(text) }) { Text("Done") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -871,8 +873,8 @@ private fun NoteDialog(annot: PdfAnnot, canEdit: Boolean, onDismiss: () -> Unit,
             if (canEdit) OutlinedTextField(text, { text = it }, minLines = 3, modifier = Modifier.fillMaxWidth())
             else Text(text.ifBlank { "(empty)" })
         },
-        confirmButton = { if (canEdit) TextButton(onClick = { onSave(text) }) { Text("Save") } else TextButton(onClick = onDismiss) { Text("Close") } },
-        dismissButton = { if (canEdit) Row { TextButton(onClick = onDelete) { Text("Delete") }; TextButton(onClick = onDismiss) { Text("Cancel") } } },
+        confirmButton = { if (canEdit) TextButton(onClick = tap { onSave(text) }) { Text("Save") } else TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = { if (canEdit) Row { TextButton(onClick = tap(onDelete)) { Text("Delete") }; TextButton(onClick = onDismiss) { Text("Cancel") } } },
     )
 }
 
@@ -890,17 +892,17 @@ private fun AddTextDialog(onDismiss: () -> Unit, onDone: (String, Float, FontFam
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(FontFamilyChoice.SANS to "Sans", FontFamilyChoice.SERIF to "Serif", FontFamilyChoice.MONO to "Mono").forEach { (f, label) ->
-                        FilterChip(selected = family == f, onClick = { family = f }, label = { Text(label) })
+                        FilterChip(selected = family == f, onClick = tap { family = f }, label = { Text(label) })
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${size.toInt()} pt", style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(48.dp))
-                    Slider(size, { size = it }, valueRange = 6f..48f, modifier = Modifier.weight(1f))
+                    Slider(size, sliding(6f..48f) { size = it }, valueRange = 6f..48f, modifier = Modifier.weight(1f))
                 }
             }
         },
-        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = { onDone(text, size.toInt().toFloat(), family) }) { Text("Add") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = tap { onDone(text, size.toInt().toFloat(), family) }) { Text("Add") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 

@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
@@ -116,9 +117,9 @@ fun EpubScreen(source: DocSource, onBack: () -> Unit) {
         chrome = chrome, onBack = onBack,
         actions = {
             if (b != null) {
-                IconButton(onClick = { contents = true }) { Icon(Icons.AutoMirrored.Rounded.Toc, "Contents") }
-                IconButton(onClick = { scale = (scale - 0.1f).coerceAtLeast(0.7f) }) { Icon(Icons.Rounded.TextDecrease, "Smaller text") }
-                IconButton(onClick = { scale = (scale + 0.1f).coerceAtMost(2f) }) { Icon(Icons.Rounded.TextIncrease, "Larger text") }
+                IconButton(onClick = tap { contents = true }) { Icon(Icons.AutoMirrored.Rounded.Toc, "Contents") }
+                IconButton(onClick = tap { scale = (scale - 0.1f).coerceAtLeast(0.7f) }) { Icon(Icons.Rounded.TextDecrease, "Smaller text") }
+                IconButton(onClick = tap { scale = (scale + 0.1f).coerceAtMost(2f) }) { Icon(Icons.Rounded.TextIncrease, "Larger text") }
             }
         },
     ) {
@@ -190,12 +191,12 @@ fun EpubScreen(source: DocSource, onBack: () -> Unit) {
                 if (chrome.visible.value) {
                     Surface(color = paper.chrome, shadowElevation = 6.dp, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
                         Row(Modifier.navigationBarsPadding().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(enabled = chapter > 0, onClick = { savePosition(chapter - 1, 0f); restoreFraction = 0f; chapter-- }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Previous chapter") }
+                            IconButton(enabled = chapter > 0, onClick = tap { savePosition(chapter - 1, 0f); restoreFraction = 0f; chapter-- }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Previous chapter") }
                             Text(
                                 b.chapters[chapter].title ?: "Chapter ${chapter + 1}", style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).clickable { contents = true },
                             )
-                            IconButton(enabled = chapter < b.chapters.lastIndex, onClick = { savePosition(chapter + 1, 0f); restoreFraction = 0f; chapter++ }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Next chapter") }
+                            IconButton(enabled = chapter < b.chapters.lastIndex, onClick = tap { savePosition(chapter + 1, 0f); restoreFraction = 0f; chapter++ }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Next chapter") }
                         }
                     }
                 }
@@ -222,7 +223,7 @@ fun EpubScreen(source: DocSource, onBack: () -> Unit) {
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { contents = false }) { Text("Close") } },
+            confirmButton = { TextButton(onClick = tap { contents = false }) { Text("Close") } },
         )
     }
 }

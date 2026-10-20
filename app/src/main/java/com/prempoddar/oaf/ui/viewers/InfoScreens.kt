@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import kotlinx.coroutines.launch
 import com.prempoddar.oaf.files.Installer
 import android.content.pm.PackageInfo
@@ -118,12 +119,12 @@ fun ApkScreen(source: DocSource, onBack: () -> Unit) {
     ViewerScaffold(
         title = source.name, subtitle = "Android app", chrome = rememberChrome(), autoHide = false, onBack = onBack,
         actions = {
-            IconButton(onClick = { browsing = true }) { Icon(Icons.Rounded.FolderZip, "Browse files inside") }
+            IconButton(onClick = tap { browsing = true }) { Icon(Icons.Rounded.FolderZip, "Browse files inside") }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Install with another app…") }, onClick = { menu = false; openElsewhere(context, source) })
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
+                    DropdownMenuItem(text = { Text("Install with another app…") }, onClick = tap { menu = false; openElsewhere(context, source) })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = tap { menu = false; shareSource(context, source) })
                 }
             }
         },
@@ -199,7 +200,7 @@ fun FontScreen(source: DocSource, onBack: () -> Unit) {
         }
     }
     ViewerScaffold(title = source.name, subtitle = "Font", chrome = rememberChrome(), autoHide = false, onBack = onBack, actions = {
-        IconButton(onClick = { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
+        IconButton(onClick = tap { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
     }) {
         val top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() + 72.dp
         when (val r = info) {

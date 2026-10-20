@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
@@ -136,23 +137,23 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         title = source.name, subtitle = (loaded as? Loaded.Still)?.bitmap?.let { "${it.width} × ${it.height}" },
         chrome = chrome, themeToggle = false, onBack = onBack,
         actions = {
-            if (source.kind != FileKind.SVG) IconButton(onClick = { editing = true }) { Icon(Icons.Rounded.Edit, "Edit") }
-            IconButton(onClick = { rotation = (rotation + 90f) % 360f }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Rotate") }
-            IconButton(onClick = { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
+            if (source.kind != FileKind.SVG) IconButton(onClick = tap { editing = true }) { Icon(Icons.Rounded.Edit, "Edit") }
+            IconButton(onClick = tap { rotation = (rotation + 90f) % 360f }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Rotate") }
+            IconButton(onClick = tap { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     listOf("PNG" to "image/png", "JPEG" to "image/jpeg", "WebP" to "image/webp").forEach { (label, mime) ->
-                        DropdownMenuItem(text = { Text("Save as $label…") }, onClick = { menu = false; pendingMime = mime; convert.launch(source.name.substringBeforeLast('.') + "." + label.lowercase().replace("jpeg", "jpg")) })
+                        DropdownMenuItem(text = { Text("Save as $label…") }, onClick = tap { menu = false; pendingMime = mime; convert.launch(source.name.substringBeforeLast('.') + "." + label.lowercase().replace("jpeg", "jpg")) })
                     }
-                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = {
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = tap {
                         menu = false
                         scope.launch {
                             val bytes = withContext(Dispatchers.IO) { runCatching { source.open(context).use { it.readBytes() } }.getOrNull() }
                             if (bytes != null) Printing.printHtml(context, source.name, PrintHtml.image(source.name, bytes, source.mime ?: "image/*"))
                         }
                     })
-                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openElsewhere(context, source) })
                 }
             }
         },

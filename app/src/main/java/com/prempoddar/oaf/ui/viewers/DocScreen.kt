@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.automirrored.rounded.Notes
@@ -453,49 +454,49 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
         onBack = { if (dirty) confirmLeave = true else onBack() },
         actions = {
             if (editing) {
-                IconButton(enabled = editor.canUndo, onClick = { act { undo() } }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
-                IconButton(enabled = editor.canRedo, onClick = { act { redo() } }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
+                IconButton(enabled = editor.canUndo, onClick = tap { act { undo() } }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
+                IconButton(enabled = editor.canRedo, onClick = tap { act { redo() } }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
             } else {
-                IconButton(onClick = { editing = true; finding = false; chrome.show() }) { Icon(Icons.Rounded.Edit, "Edit") }
+                IconButton(onClick = tap { editing = true; finding = false; chrome.show() }) { Icon(Icons.Rounded.Edit, "Edit") }
             }
-            IconButton(enabled = dirty && !saving, onClick = { save() }) {
+            IconButton(enabled = dirty && !saving, onClick = tap { save() }) {
                 if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.Save, "Save")
             }
-            if (editing) IconButton(onClick = { editing = false; focus.clearFocus() }) { Icon(Icons.Rounded.Check, "Done editing") }
+            if (editing) IconButton(onClick = tap { editing = false; focus.clearFocus() }) { Icon(Icons.Rounded.Check, "Done editing") }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                    if (!editing) DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; finding = true; chrome.show() })
+                    if (!editing) DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = tap { menu = false; finding = true; chrome.show() })
                     if (editing) {
-                        DropdownMenuItem(text = { Text("Replace…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; replacing = true })
+                        DropdownMenuItem(text = { Text("Replace…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = tap { menu = false; replacing = true })
                         val here = focused
-                        DropdownMenuItem(text = { Text("Insert table…") }, enabled = here != null, onClick = { menu = false; newTable = true })
+                        DropdownMenuItem(text = { Text("Insert table…") }, enabled = here != null, onClick = tap { menu = false; newTable = true })
                         if (here != null && editor.tableOf(here) != null) {
-                            DropdownMenuItem(text = { Text("Add row above") }, onClick = { menu = false; editor.addRow(here, below = false)?.let { caretTarget = it to 0 }; tick = editor.version })
-                            DropdownMenuItem(text = { Text("Add row below") }, onClick = { menu = false; editor.addRow(here, below = true)?.let { caretTarget = it to 0 }; tick = editor.version })
-                            DropdownMenuItem(text = { Text("Delete row") }, onClick = { menu = false; focused = null; act { deleteRow(here) } })
-                            DropdownMenuItem(text = { Text("Delete table") }, onClick = { menu = false; focused = null; act { deleteTable(here) } })
+                            DropdownMenuItem(text = { Text("Add row above") }, onClick = tap { menu = false; editor.addRow(here, below = false)?.let { caretTarget = it to 0 }; tick = editor.version })
+                            DropdownMenuItem(text = { Text("Add row below") }, onClick = tap { menu = false; editor.addRow(here, below = true)?.let { caretTarget = it to 0 }; tick = editor.version })
+                            DropdownMenuItem(text = { Text("Delete row") }, onClick = tap { menu = false; focused = null; act { deleteRow(here) } })
+                            DropdownMenuItem(text = { Text("Delete table") }, onClick = tap { menu = false; focused = null; act { deleteTable(here) } })
                         }
                         HorizontalDivider()
                     }
-                    DropdownMenuItem(text = { Text("Contents") }, onClick = { menu = false; contents = true })
+                    DropdownMenuItem(text = { Text("Contents") }, onClick = tap { menu = false; contents = true })
                     DropdownMenuItem(
                         text = { Text(if (pageView) "Reading view" else "Page view") },
                         leadingIcon = { Icon(if (pageView) Icons.AutoMirrored.Rounded.Notes else Icons.Rounded.Description, null) },
-                        onClick = { menu = false; pageView = !pageView; zoom = 1f },
+                        onClick = tap { menu = false; pageView = !pageView; zoom = 1f },
                     )
                     if (pageView) {
-                        DropdownMenuItem(text = { Text("Zoom in") }, onClick = { menu = false; zoom = (zoom * 1.25f).coerceAtMost(4f) })
-                        DropdownMenuItem(text = { Text("Fit width") }, enabled = zoom != 1f, onClick = { menu = false; zoom = 1f })
+                        DropdownMenuItem(text = { Text("Zoom in") }, onClick = tap { menu = false; zoom = (zoom * 1.25f).coerceAtMost(4f) })
+                        DropdownMenuItem(text = { Text("Fit width") }, enabled = zoom != 1f, onClick = tap { menu = false; zoom = 1f })
                     } else {
-                        DropdownMenuItem(text = { Text("Larger text") }, onClick = { menu = false; scale = (scale + 0.12f).coerceAtMost(2f) })
-                        DropdownMenuItem(text = { Text("Smaller text") }, onClick = { menu = false; scale = (scale - 0.12f).coerceAtLeast(0.6f) })
+                        DropdownMenuItem(text = { Text("Larger text") }, onClick = tap { menu = false; scale = (scale + 0.12f).coerceAtMost(2f) })
+                        DropdownMenuItem(text = { Text("Smaller text") }, onClick = tap { menu = false; scale = (scale - 0.12f).coerceAtLeast(0.6f) })
                     }
                     HorizontalDivider()
-                    DropdownMenuItem(text = { Text(if (loaded.native) "Save a copy…" else "Save as Word document…") }, onClick = { menu = false; saveAs.launch("$baseName.docx") })
-                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = { menu = false; Printing.printHtml(context, source.name, PrintHtml.document(source.name, editor.body, doc.styles, doc.numbering) { doc.bytes(it) }) })
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
-                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    DropdownMenuItem(text = { Text(if (loaded.native) "Save a copy…" else "Save as Word document…") }, onClick = tap { menu = false; saveAs.launch("$baseName.docx") })
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = tap { menu = false; Printing.printHtml(context, source.name, PrintHtml.document(source.name, editor.body, doc.styles, doc.numbering) { doc.bytes(it) }) })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = tap { menu = false; shareSource(context, source) })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openElsewhere(context, source) })
                 }
             }
         },
@@ -576,7 +577,7 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { contents = false }) { Text("Close") } },
+            confirmButton = { TextButton(onClick = tap { contents = false }) { Text("Close") } },
         )
     }
 
@@ -597,12 +598,12 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
                 }
             },
             confirmButton = {
-                TextButton(enabled = r != null && c != null, onClick = {
+                TextButton(enabled = r != null && c != null, onClick = tap {
                     newTable = false
                     focused?.let { id -> editor.insertTable(id, r!!, c!!)?.let { caretTarget = it to 0 }; tick = editor.version }
                 }) { Text("Insert") }
             },
-            dismissButton = { TextButton(onClick = { newTable = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = tap { newTable = false }) { Text("Cancel") } },
         )
     }
 
@@ -628,14 +629,14 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
                 }
             },
             confirmButton = {
-                TextButton(enabled = count > 0, onClick = {
+                TextButton(enabled = count > 0, onClick = tap {
                     replacing = false
                     var n = 0
                     act { n = replaceAll(find, with, matchCase) }
                     Toast.makeText(context, "Replaced $n", Toast.LENGTH_SHORT).show()
                 }) { Text("Replace all") }
             },
-            dismissButton = { TextButton(onClick = { replacing = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = tap { replacing = false }) { Text("Cancel") } },
         )
     }
 
@@ -644,8 +645,8 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
             onDismissRequest = { confirmLeave = false },
             title = { Text("Save changes?") },
             text = { Text(if (loaded.native) "You've edited ${source.name}." else "${source.kind.label} files are saved as a new Word document.") },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; save(then = onBack) }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { confirmLeave = false; onBack() }) { Text("Discard") } },
+            confirmButton = { TextButton(onClick = tap { confirmLeave = false; save(then = onBack) }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = tap { confirmLeave = false; onBack() }) { Text("Discard") } },
         )
     }
 }
@@ -662,9 +663,9 @@ private fun FindStrip(query: String, count: Int, hit: Int, top: Dp, onQuery: (St
                 decorationBox = { inner -> if (query.isEmpty()) Text("Find in document", color = paper.faint); inner() },
             )
             Text(if (count == 0) "0" else "${hit + 1}/$count", style = MaterialTheme.typography.labelMedium, color = paper.muted)
-            IconButton(onClick = onPrevious) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
-            IconButton(onClick = onNext) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Close") }
+            IconButton(onClick = tap(onPrevious)) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
+            IconButton(onClick = tap(onNext)) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
+            IconButton(onClick = tap(onClose)) { Icon(Icons.Rounded.Close, "Close") }
         }
     }
 }
@@ -814,7 +815,7 @@ private fun FormatToolbar(
 
     @Composable
     fun Btn(icon: ImageVector, label: String, on: Boolean = false, click: () -> Unit) {
-        IconButton(enabled = enabled, onClick = click) { Icon(icon, label, tint = if (on) paper.accent else if (enabled) paper.ink else paper.faint) }
+        IconButton(enabled = enabled, onClick = tap(click)) { Icon(icon, label, tint = if (on) paper.accent else if (enabled) paper.ink else paper.faint) }
     }
 
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shadowElevation = 4.dp) {
@@ -826,7 +827,7 @@ private fun FormatToolbar(
                         val lvl = styles.headingLevel(id)
                         DropdownMenuItem(
                             text = { Text(name, style = when (lvl) { 0 -> MaterialTheme.typography.headlineSmall; 1 -> MaterialTheme.typography.titleLarge; 2 -> MaterialTheme.typography.titleMedium; 3 -> MaterialTheme.typography.titleSmall; else -> MaterialTheme.typography.bodyLarge }) },
-                            onClick = { open = null; onParagraph { it.copy(styleId = id) } },
+                            onClick = tap { open = null; onParagraph { it.copy(styleId = id) } },
                         )
                     }
                 }
@@ -847,10 +848,10 @@ private fun FormatToolbar(
                 }
             }
             Box {
-                TextButton(enabled = enabled, onClick = { open = "size" }) { Text("${(effective.size ?: styles.baseSize).let { if (it % 1f == 0f) it.toInt().toString() else it.toString() }}pt", color = paper.ink) }
+                TextButton(enabled = enabled, onClick = tap { open = "size" }) { Text("${(effective.size ?: styles.baseSize).let { if (it % 1f == 0f) it.toInt().toString() else it.toString() }}pt", color = paper.ink) }
                 DropdownMenu(open == "size", onDismissRequest = { open = null }) {
                     listOf(8f, 9f, 10f, 11f, 12f, 14f, 16f, 18f, 20f, 24f, 28f, 36f).forEach { pt ->
-                        DropdownMenuItem(text = { Text("${pt.toInt()} pt") }, onClick = { open = null; onRun { it.copy(size = pt) } })
+                        DropdownMenuItem(text = { Text("${pt.toInt()} pt") }, onClick = tap { open = null; onRun { it.copy(size = pt) } })
                     }
                 }
             }
@@ -877,7 +878,7 @@ private fun DocSwatches(colours: List<Int>, onPick: (Int?) -> Unit) {
         colours.forEach { c ->
             Box(Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF000000.toInt() or c)).border(1.dp, paper.rule, CircleShape).clickable { onPick(c) })
         }
-        TextButton(onClick = { onPick(null) }) { Text("None") }
+        TextButton(onClick = tap { onPick(null) }) { Text("None") }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
@@ -113,13 +114,13 @@ fun SlidesScreen(source: DocSource, onBack: () -> Unit) {
         subtitle = d?.let { "${source.kind.label} · ${it.slides.size} slides" + if (source.kind == FileKind.PPT) " · text only" else "" } ?: source.kind.label,
         chrome = rememberChrome(), autoHide = false, onBack = onBack,
         actions = {
-            if (d != null && d.slides.isNotEmpty()) IconButton(onClick = { presenting = 0 }) { Icon(Icons.Rounded.PlayArrow, "Present") }
+            if (d != null && d.slides.isNotEmpty()) IconButton(onClick = tap { presenting = 0 }) { Icon(Icons.Rounded.PlayArrow, "Present") }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text(if (notes) "Hide speaker notes" else "Show speaker notes") }, onClick = { menu = false; notes = !notes })
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
-                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    DropdownMenuItem(text = { Text(if (notes) "Hide speaker notes" else "Show speaker notes") }, onClick = tap { menu = false; notes = !notes })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = tap { menu = false; shareSource(context, source) })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openElsewhere(context, source) })
                 }
             }
         },

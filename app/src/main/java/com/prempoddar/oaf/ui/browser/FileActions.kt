@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.Lock
@@ -117,8 +118,8 @@ fun DeleteDialog(count: Int, onDismiss: () -> Unit, onConfirm: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text("Move ${if (count == 1) "this item" else "$count items"} to the bin?") },
         text = { Text("You can put things back from the bin for 30 days.") },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Move to bin") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = tap(onConfirm)) { Text("Move to bin") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -153,12 +154,12 @@ fun SelectionBar(
             androidx.compose.foundation.layout.Box {
                 Action(Icons.Rounded.MoreVert, "More") { menu = true }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                    if (one != null) DropdownMenuItem(text = { Text("Rename") }, onClick = { menu = false; onRename(one) })
-                    if (selected.size > 1) DropdownMenuItem(text = { Text("Rename all…") }, onClick = { menu = false; onBatchRename(selected.toList()) })
-                    DropdownMenuItem(text = { Text("Compress…") }, onClick = { menu = false; compressing = selected.toList() })
-                    if (one != null && isArchive(one)) DropdownMenuItem(text = { Text("Extract here") }, onClick = { menu = false; extract(context, one) { wrong -> locked = one to wrong }; onDone() })
-                    if (one != null && one.isFile) DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openWith(context, one) })
-                    if (one != null) DropdownMenuItem(text = { Text("Details") }, onClick = { menu = false; onDetails(one) })
+                    if (one != null) DropdownMenuItem(text = { Text("Rename") }, onClick = tap { menu = false; onRename(one) })
+                    if (selected.size > 1) DropdownMenuItem(text = { Text("Rename all…") }, onClick = tap { menu = false; onBatchRename(selected.toList()) })
+                    DropdownMenuItem(text = { Text("Compress…") }, onClick = tap { menu = false; compressing = selected.toList() })
+                    if (one != null && isArchive(one)) DropdownMenuItem(text = { Text("Extract here") }, onClick = tap { menu = false; extract(context, one) { wrong -> locked = one to wrong }; onDone() })
+                    if (one != null && one.isFile) DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openWith(context, one) })
+                    if (one != null) DropdownMenuItem(text = { Text("Details") }, onClick = tap { menu = false; onDetails(one) })
                     extra { menu = false }
                 }
             }
@@ -176,7 +177,7 @@ fun SelectionBar(
 @Composable
 private fun Action(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(onClick = onClick) { Icon(icon, label) }
+        IconButton(onClick = tap(onClick)) { Icon(icon, label) }
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -202,7 +203,7 @@ fun ClipAndJobBar(pasteInto: File?) {
                         Text(j.label + "…", style = MaterialTheme.typography.titleSmall)
                         if (p != null && p.total > 0) Text("${humanSize(p.done)} of ${humanSize(p.total)}" + if (p.current.isNotEmpty()) " · ${p.current}" else "", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    TextButton(onClick = { AppGraph.clipboard.cancel() }) { Text("Cancel") }
+                    TextButton(onClick = tap { AppGraph.clipboard.cancel() }) { Text("Cancel") }
                 }
                 if (p != null && p.total > 0) LinearProgressIndicator(progress = { (p.done.toFloat() / p.total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(end = 12.dp, top = 4.dp))
                 else LinearProgressIndicator(Modifier.fillMaxWidth().padding(end = 12.dp, top = 4.dp))
@@ -214,8 +215,8 @@ fun ClipAndJobBar(pasteInto: File?) {
                         "${c.files.size} item${if (c.files.size == 1) "" else "s"} to ${if (c.mode == ClipMode.CUT) "move" else "copy"}",
                         style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    TextButton(onClick = { AppGraph.clipboard.clear() }) { Text("Cancel") }
-                    Button(enabled = pasteInto != null, onClick = { pasteInto?.let { AppGraph.clipboard.paste(it, toast(context)) } }) {
+                    TextButton(onClick = tap { AppGraph.clipboard.clear() }) { Text("Cancel") }
+                    Button(enabled = pasteInto != null, onClick = tap { pasteInto?.let { AppGraph.clipboard.paste(it, toast(context)) } }) {
                         Icon(Icons.Rounded.ContentPaste, null)
                         Spacer(Modifier.width(6.dp))
                         Text(if (pasteInto == null) "Open a folder" else "Paste")
@@ -272,7 +273,7 @@ fun CompressDialog(items: List<File>, onDismiss: () -> Unit, onCompress: (Compre
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             com.prempoddar.oaf.ui.design.PillTextField(password, { password = it }, "Password", clearable = false, keyboardOptions = kb, visualTransformation = vt,
                                 supporting = if (password.isNotEmpty() && password.length < 4) "At least 4 characters" else null,
-                                trailing = { IconButton(onClick = { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } })
+                                trailing = { IconButton(onClick = tap { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } })
                             com.prempoddar.oaf.ui.design.PillTextField(again, { again = it }, "Type it again", clearable = false, keyboardOptions = kb, visualTransformation = vt,
                                 isError = mismatch, supporting = if (mismatch) "The passwords don't match" else null)
                         }
@@ -280,8 +281,8 @@ fun CompressDialog(items: List<File>, onDismiss: () -> Unit, onCompress: (Compre
                 }
             }
         },
-        confirmButton = { TextButton(enabled = ok, onClick = { onCompress(Compressor.Options(name.trim(), format, level, password.takeIf { lock })) }) { Text("Compress") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(enabled = ok, onClick = tap { onCompress(Compressor.Options(name.trim(), format, level, password.takeIf { lock })) }) { Text("Compress") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -300,11 +301,11 @@ fun PasswordDialog(name: String, wrong: Boolean, onDismiss: () -> Unit, onUnlock
                     value, { value = it }, "Password", Modifier.padding(top = 12.dp), isError = wrong, clearable = false,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
                     visualTransformation = if (show) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    trailing = { IconButton(onClick = { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } },
+                    trailing = { IconButton(onClick = tap { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } },
                 )
             }
         },
-        confirmButton = { TextButton(enabled = value.isNotEmpty(), onClick = { onUnlock(value) }) { Text("Extract") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(enabled = value.isNotEmpty(), onClick = tap { onUnlock(value) }) { Text("Extract") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }

@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,9 +59,9 @@ fun BinScreen(onBack: () -> Unit) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Column(Modifier.fillMaxSize().background(paper.page).padding(top = top)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+            IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
             Text("Bin", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            if (items.isNotEmpty()) TextButton(onClick = { confirmEmpty = true }) { Text("Empty bin") }
+            if (items.isNotEmpty()) TextButton(onClick = tap { confirmEmpty = true }) { Text("Empty bin") }
         }
         Text("Deleted files stay here for 30 days.", style = MaterialTheme.typography.bodySmall, color = paper.muted, modifier = Modifier.padding(horizontal = 20.dp))
         LazyColumn {
@@ -71,8 +72,8 @@ fun BinScreen(onBack: () -> Unit) {
                         Text(item.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text("${humanSize(item.size)} · from ${item.originalPath.substringBeforeLast('/').substringAfterLast('/')}", style = MaterialTheme.typography.bodySmall, color = paper.muted)
                     }
-                    TextButton(onClick = { io { AppGraph.bin.restore(item) } }) { Text("Restore") }
-                    TextButton(onClick = { io { AppGraph.bin.purge(item) } }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = tap { io { AppGraph.bin.restore(item) } }) { Text("Restore") }
+                    TextButton(onClick = tap { io { AppGraph.bin.purge(item) } }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
@@ -82,8 +83,8 @@ fun BinScreen(onBack: () -> Unit) {
             onDismissRequest = { confirmEmpty = false },
             title = { Text("Empty the bin?") },
             text = { Text("${items.size} item${if (items.size == 1) "" else "s"} will be deleted for good.") },
-            confirmButton = { TextButton(onClick = { confirmEmpty = false; io { AppGraph.bin.empty() } }) { Text("Empty", color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = { confirmEmpty = false }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = tap { confirmEmpty = false; io { AppGraph.bin.empty() } }) { Text("Empty", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = tap { confirmEmpty = false }) { Text("Cancel") } },
         )
     }
 }
@@ -96,7 +97,7 @@ fun StorageScreen(onBack: () -> Unit) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Column(Modifier.fillMaxSize().background(paper.page).verticalScroll(rememberScrollState()).padding(top = top)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+            IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
             Text("Storage", style = MaterialTheme.typography.headlineSmall)
         }
         val u = usage ?: run { LinearProgressIndicator(Modifier.fillMaxWidth().padding(20.dp)); return@Column }
@@ -151,7 +152,7 @@ private fun CleanUpSection() {
         if (r == null) {
             Text("Looks for big files, copies of the same file, old app installers and empty folders.", color = paper.muted, style = MaterialTheme.typography.bodyMedium)
             if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 12.dp))
-            else Button(onClick = {
+            else Button(onClick = tap {
                 scanning = true
                 scope.launch {
                     report = withContext(Dispatchers.IO) { CleanUp.scan(android.os.Environment.getExternalStorageDirectory()) }
@@ -173,7 +174,7 @@ private fun CleanUpSection() {
                     Text(f.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(detail, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                TextButton(onClick = { toBin(f) }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = tap { toBin(f) }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             }
         }
         fun where(f: File) = f.parentFile?.name ?: ""
@@ -200,7 +201,7 @@ private fun CleanUpSection() {
             Heading("Empty folders", "${empties.size} folder${if (empties.size == 1) "" else "s"} with nothing in them.")
             empties.take(10).forEach { Text(it.path.removePrefix(android.os.Environment.getExternalStorageDirectory().path), style = MaterialTheme.typography.bodySmall, color = paper.muted) }
             if (empties.size > 10) Text("and ${empties.size - 10} more", style = MaterialTheme.typography.bodySmall, color = paper.muted)
-            TextButton(onClick = {
+            TextButton(onClick = tap {
                 scope.launch {
                     // Nothing is inside them, so there's nothing for the bin to keep.
                     val removed = withContext(Dispatchers.IO) { empties.filter { it.delete() }.map { it.path } }
@@ -208,6 +209,6 @@ private fun CleanUpSection() {
                 }
             }) { Text("Remove empty folders") }
         }
-        TextButton(onClick = { report = null; gone = emptySet() }, Modifier.padding(top = 8.dp)) { Text("Look again") }
+        TextButton(onClick = tap { report = null; gone = emptySet() }, Modifier.padding(top = 8.dp)) { Text("Look again") }
     }
 }

@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.Lock
@@ -154,14 +155,14 @@ fun ArchiveScreen(source: DocSource, onBack: () -> Unit, onOpen: (DocSource) -> 
             val s = state as? ArchiveState.Ready
             if (working) CircularProgressIndicator(Modifier.size(20.dp).padding(end = 4.dp), strokeWidth = 2.dp)
             if (s != null) Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     val what = if (folder.isEmpty()) "everything" else "this folder"
                     val parentWritable = source.file?.parentFile?.canWrite() == true
-                    if (parentWritable) DropdownMenuItem(text = { Text("Extract $what here") }, leadingIcon = { Icon(Icons.Rounded.Unarchive, null) }, onClick = { menu = false; extractHere(s) })
-                    DropdownMenuItem(text = { Text("Extract $what to…") }, onClick = { menu = false; extractTree.launch(null) })
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
-                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    if (parentWritable) DropdownMenuItem(text = { Text("Extract $what here") }, leadingIcon = { Icon(Icons.Rounded.Unarchive, null) }, onClick = tap { menu = false; extractHere(s) })
+                    DropdownMenuItem(text = { Text("Extract $what to…") }, onClick = tap { menu = false; extractTree.launch(null) })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = tap { menu = false; shareSource(context, source) })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openElsewhere(context, source) })
                 }
             }
         },
@@ -226,11 +227,11 @@ private fun ArchivePassword(wrong: Boolean, onCancel: () -> Unit, onUnlock: (Str
                     value, { value = it }, "Password", Modifier.padding(top = 12.dp), isError = wrong, clearable = false,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
                     visualTransformation = if (show) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                    trailing = { androidx.compose.material3.IconButton(onClick = { show = !show }) { Icon(if (show) androidx.compose.material.icons.Icons.Rounded.VisibilityOff else androidx.compose.material.icons.Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } },
+                    trailing = { androidx.compose.material3.IconButton(onClick = tap { show = !show }) { Icon(if (show) androidx.compose.material.icons.Icons.Rounded.VisibilityOff else androidx.compose.material.icons.Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } },
                 )
             }
         },
-        confirmButton = { androidx.compose.material3.TextButton(enabled = value.isNotEmpty(), onClick = { onUnlock(value) }) { Text("Open") } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onCancel) { Text("Cancel") } },
+        confirmButton = { androidx.compose.material3.TextButton(enabled = value.isNotEmpty(), onClick = tap { onUnlock(value) }) { Text("Open") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = tap(onCancel)) { Text("Cancel") } },
     )
 }

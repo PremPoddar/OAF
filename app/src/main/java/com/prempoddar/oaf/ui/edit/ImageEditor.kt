@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.edit
 
+import com.prempoddar.oaf.ui.design.sliding
+import com.prempoddar.oaf.ui.design.tap
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import androidx.compose.foundation.Canvas
@@ -149,7 +151,7 @@ fun ImageEditor(source: DocSource, onClose: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(bitmap?.let { "${it.width} × ${it.height}" } ?: "", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f).padding(start = 8.dp))
             if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            IconButton(enabled = undo.isNotEmpty() && !busy, onClick = { edits = undo.removeAt(undo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
+            IconButton(enabled = undo.isNotEmpty() && !busy, onClick = tap { edits = undo.removeAt(undo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
         }
         // The edges of the screen belong to the picture here, not to the back gesture, so crop
         // handles and brush strokes near them don't close the editor. A margin keeps handles reachable.
@@ -259,14 +261,14 @@ fun ImageEditor(source: DocSource, onClose: () -> Unit) {
                         Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
                     )
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { apply { ImageOps.rotate(it, -90f) } }) { Icon(Icons.AutoMirrored.Rounded.RotateLeft, "Turn left") }
-                        IconButton(onClick = { apply { ImageOps.rotate(it, 90f) } }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Turn right") }
-                        IconButton(onClick = { apply { ImageOps.flip(it, true) } }) { Icon(Icons.Rounded.Flip, "Flip sideways") }
-                        IconButton(onClick = { apply { ImageOps.flip(it, false) } }) { Icon(Icons.Rounded.Flip, "Flip upside down", Modifier.rotate(90f)) }
+                        IconButton(onClick = tap { apply { ImageOps.rotate(it, -90f) } }) { Icon(Icons.AutoMirrored.Rounded.RotateLeft, "Turn left") }
+                        IconButton(onClick = tap { apply { ImageOps.rotate(it, 90f) } }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Turn right") }
+                        IconButton(onClick = tap { apply { ImageOps.flip(it, true) } }) { Icon(Icons.Rounded.Flip, "Flip sideways") }
+                        IconButton(onClick = tap { apply { ImageOps.flip(it, false) } }) { Icon(Icons.Rounded.Flip, "Flip upside down", Modifier.rotate(90f)) }
                         Spacer(Modifier.weight(1f))
                         Button(
                             enabled = b != null && crop != null && crop != Rect(0f, 0f, b.width.toFloat(), b.height.toFloat()) && !busy,
-                            onClick = { crop?.let { r -> apply { ImageOps.crop(it, r) } } },
+                            onClick = tap { crop?.let { r -> apply { ImageOps.crop(it, r) } } },
                         ) { Text("Crop") }
                     }
                 }
@@ -276,10 +278,10 @@ fun ImageEditor(source: DocSource, onClose: () -> Unit) {
                     LabeledSlider("Saturation", look.saturation, 0f..2f) { look = look.copy(saturation = it) }
                     LabeledSlider("Warmth", look.warmth, -1f..1f) { look = look.copy(warmth = it) }
                     Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(enabled = look.changed, onClick = { look = Look() }) { Text("Reset") }
+                        TextButton(enabled = look.changed, onClick = tap { look = Look() }) { Text("Reset") }
                         Button(
                             enabled = look.changed && !busy,
-                            onClick = { val l = look; apply { ImageOps.adjust(it, l.brightness, l.contrast, l.saturation, l.warmth) }; look = Look() },
+                            onClick = tap { val l = look; apply { ImageOps.adjust(it, l.brightness, l.contrast, l.saturation, l.warmth) }; look = Look() },
                             modifier = Modifier.weight(1f),
                         ) { Text("Apply") }
                     }
@@ -307,7 +309,7 @@ fun ImageEditor(source: DocSource, onClose: () -> Unit) {
                     val nw = w.toIntOrNull(); val nh = h.toIntOrNull()
                     Button(
                         enabled = nw != null && nh != null && nw in 1..20000 && nh in 1..20000 && (nw != b.width || nh != b.height) && !busy,
-                        onClick = { apply { ImageOps.resize(it, nw!!, nh!!) } },
+                        onClick = tap { apply { ImageOps.resize(it, nw!!, nh!!) } },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     ) { Text("Resize to ${w} × ${h}") }
                 }
@@ -316,7 +318,7 @@ fun ImageEditor(source: DocSource, onClose: () -> Unit) {
         NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
             Tool.entries.forEach { t ->
                 NavigationBarItem(
-                    selected = tool == t, onClick = { tool = t }, label = { Text(t.label) },
+                    selected = tool == t, onClick = tap { tool = t }, label = { Text(t.label) },
                     icon = {
                         Icon(
                             when (t) { Tool.CROP -> Icons.Rounded.Crop; Tool.ADJUST -> Icons.Rounded.Tune; Tool.HIDE -> Icons.Rounded.BlurOn; Tool.RESIZE -> Icons.Rounded.PhotoSizeSelectLarge },
@@ -397,7 +399,7 @@ private fun dragCrop(cur: Rect, grab: Grab, dx: Float, dy: Float, w: Int, h: Int
 private fun LabeledSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
     Column(Modifier.padding(horizontal = 20.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge)
-        Slider(value, onChange, valueRange = range)
+        Slider(value, sliding(0f..1f, onChange), valueRange = range)
     }
 }
 
@@ -422,7 +424,7 @@ private fun SaveImageDialog(source: DocSource, bitmap: Bitmap, adjust: (Bitmap) 
                 ChoiceChips(ImageOps.Format.entries.map { it to it.label }, format, { format = it })
                 if (format.lossy) {
                     Text("Quality ${quality.toInt()}", style = MaterialTheme.typography.labelLarge)
-                    Slider(quality, { quality = it }, valueRange = 40f..100f)
+                    Slider(quality, sliding(40f..100f) { quality = it }, valueRange = 40f..100f)
                 }
                 Text(
                     if (format == ImageOps.Format.PNG) "PNG is lossless and keeps transparency; files are larger." else "Smaller files. ${if (format == ImageOps.Format.JPEG) "Transparent areas become white." else "Keeps transparency."}",
@@ -431,7 +433,7 @@ private fun SaveImageDialog(source: DocSource, bitmap: Bitmap, adjust: (Bitmap) 
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(onClick = tap {
                 saving = true
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
@@ -447,6 +449,6 @@ private fun SaveImageDialog(source: DocSource, bitmap: Bitmap, adjust: (Bitmap) 
                 }
             }) { Text("Save") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }

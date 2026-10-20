@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.edit
 
+import com.prempoddar.oaf.ui.design.tap
 import android.os.Environment
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,9 +42,9 @@ fun outputFor(source: DocSource, ext: String): File {
 @Composable
 fun EditorBar(title: String, onClose: () -> Unit, action: String, enabled: Boolean, onAction: () -> Unit) {
     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Close editor") }
+        IconButton(onClick = tap(onClose)) { Icon(Icons.Rounded.Close, "Close editor") }
         Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Button(onClick = onAction, enabled = enabled, modifier = Modifier.padding(end = 8.dp)) { Text(action) }
+        Button(onClick = tap(onAction), enabled = enabled, modifier = Modifier.padding(end = 8.dp)) { Text(action) }
     }
 }
 
@@ -71,12 +72,12 @@ fun ExportDialog(progress: Float?, saved: File?, error: String?, onCancel: () ->
         confirmButton = {
             when {
                 saved != null -> Row {
-                    TextButton(onClick = { share(context, saved) }) { Text("Share") }
-                    TextButton(onClick = { openWith(context, saved) }) { Text("Open") }
-                    TextButton(onClick = onDone) { Text("Done") }
+                    TextButton(onClick = tap { share(context, saved) }) { Text("Share") }
+                    TextButton(onClick = tap { openWith(context, saved) }) { Text("Open") }
+                    TextButton(onClick = tap(onDone)) { Text("Done") }
                 }
-                error != null -> TextButton(onClick = onDone) { Text("OK") }
-                else -> TextButton(onClick = onCancel) { Text("Cancel") }
+                error != null -> TextButton(onClick = tap(onDone)) { Text("OK") }
+                else -> TextButton(onClick = tap(onCancel)) { Text("Cancel") }
             }
         },
     )

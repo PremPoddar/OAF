@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        com.prempoddar.oaf.ui.design.Haptics.attach(window.decorView)
         if (savedInstanceState == null) handle(intent)
         setContent {
             val settings: OafSettings? by AppGraph.prefs.settings.collectAsStateWithLifecycle(null)

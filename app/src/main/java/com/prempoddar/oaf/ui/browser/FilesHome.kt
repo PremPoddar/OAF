@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.tap
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.DocumentScanner
@@ -145,7 +146,7 @@ fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
                         Text("Files", style = MaterialTheme.typography.displaySmall)
                         Text("Open all files", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    FilledTonalIconButton(onClick = { onGo(HomeTarget.Settings) }) { Icon(Icons.Rounded.Settings, "Settings") }
+                    FilledTonalIconButton(onClick = tap { onGo(HomeTarget.Settings) }) { Icon(Icons.Rounded.Settings, "Settings") }
                 }
             }
             item {

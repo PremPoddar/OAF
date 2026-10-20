@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -180,31 +181,31 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
             // Top bar: selection mode or folder title.
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 4.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (selecting) {
-                    IconButton(onClick = { selected.clear() }) { Icon(Icons.Rounded.Close, "Clear selection") }
+                    IconButton(onClick = tap { selected.clear() }) { Icon(Icons.Rounded.Close, "Clear selection") }
                     Text("${selected.size} selected", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { list?.forEach { if (it.file !in selected) selected.add(it.file) } }) { Icon(Icons.Rounded.SelectAll, "Select all") }
+                    IconButton(onClick = tap { list?.forEach { if (it.file !in selected) selected.add(it.file) } }) { Icon(Icons.Rounded.SelectAll, "Select all") }
                 } else {
-                    IconButton(onClick = { if (dir.path == start.path || !up()) onBack() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                    IconButton(onClick = tap { if (dir.path == start.path || !up()) onBack() }) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                     Column(Modifier.weight(1f)) {
                         Text(if (root?.dir?.path == dir.path) root.label else dir.name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         list?.let { Text(if (query.isNullOrBlank()) "${it.size} item${if (it.size == 1) "" else "s"}" else "${it.size} found", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
-                    IconButton(onClick = { query = if (query == null) "" else null }) { Icon(if (query == null) Icons.Rounded.Search else Icons.Rounded.SearchOff, if (query == null) "Search" else "Stop searching") }
-                    IconButton(onClick = { sheet = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort and view") }
+                    IconButton(onClick = tap { query = if (query == null) "" else null }) { Icon(if (query == null) Icons.Rounded.Search else Icons.Rounded.SearchOff, if (query == null) "Search" else "Stop searching") }
+                    IconButton(onClick = tap { sheet = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort and view") }
                     Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                        IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                         DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(text = { Text("New folder or file") }, onClick = { menu = false; newItem = true })
-                            DropdownMenuItem(text = { Text("Select all") }, onClick = { menu = false; list?.forEach { selected.add(it.file) } })
+                            DropdownMenuItem(text = { Text("New folder or file") }, onClick = tap { menu = false; newItem = true })
+                            DropdownMenuItem(text = { Text("Select all") }, onClick = tap { menu = false; list?.forEach { selected.add(it.file) } })
                             DropdownMenuItem(
                                 text = { Text(if (isFav) "Remove from favourites" else "Add to favourites") },
                                 leadingIcon = { Icon(if (isFav) Icons.Rounded.Star else Icons.Rounded.StarBorder, null) },
-                                onClick = { menu = false; scope.launch { AppGraph.prefs.update { s -> s.copy(favourites = if (isFav) s.favourites - path else s.favourites + path) } } },
+                                onClick = tap { menu = false; scope.launch { AppGraph.prefs.update { s -> s.copy(favourites = if (isFav) s.favourites - path else s.favourites + path) } } },
                             )
-                            DropdownMenuItem(text = { Text(if (settings.showHidden) "Hide hidden files" else "Show hidden files") }, onClick = {
+                            DropdownMenuItem(text = { Text(if (settings.showHidden) "Hide hidden files" else "Show hidden files") }, onClick = tap {
                                 menu = false; scope.launch { AppGraph.prefs.update { it.copy(showHidden = !it.showHidden) } }
                             })
-                            DropdownMenuItem(text = { Text("Folder details") }, onClick = { menu = false; details = dir })
+                            DropdownMenuItem(text = { Text("Folder details") }, onClick = tap { menu = false; details = dir })
                         }
                     }
                 }
@@ -257,7 +258,7 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
             val job by AppGraph.clipboard.job.collectAsStateWithLifecycle()
             if (clip == null && job == null) {
                 ExtendedFloatingActionButton(
-                    onClick = { newItem = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("New") },
+                    onClick = tap { newItem = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("New") },
                     modifier = Modifier.navigationBarsPadding().padding(20.dp),
                 )
             }
@@ -305,7 +306,7 @@ private fun Breadcrumbs(dir: File, root: Root, onGo: (File) -> Unit) {
     ) {
         parts.forEachIndexed { i, f ->
             if (i > 0) Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            AssistChip(onClick = { onGo(f) }, label = { Text(if (f == root.dir) root.label else f.name, maxLines = 1) })
+            AssistChip(onClick = tap { onGo(f) }, label = { Text(if (f == root.dir) root.label else f.name, maxLines = 1) })
         }
     }
 }

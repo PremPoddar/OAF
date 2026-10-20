@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,7 +46,7 @@ fun HexViewer(source: DocSource, onBack: () -> Unit, note: String? = null) {
     ViewerScaffold(
         title = source.name, subtitle = "${source.kind.label} · ${humanSize(file?.length() ?: source.size.coerceAtLeast(0))}",
         chrome = rememberChrome(), autoHide = false, onBack = onBack,
-        actions = { IconButton(onClick = { openElsewhere(context, source) }) { Icon(Icons.AutoMirrored.Rounded.OpenInNew, "Open with") } },
+        actions = { IconButton(onClick = tap { openElsewhere(context, source) }) { Icon(Icons.AutoMirrored.Rounded.OpenInNew, "Open with") } },
     ) {
         val f = file
         val raf = androidx.compose.runtime.remember(f) { f?.let { RandomAccessFile(it, "r") } }
@@ -54,7 +55,7 @@ fun HexViewer(source: DocSource, onBack: () -> Unit, note: String? = null) {
                 Column(Modifier.fillMaxWidth().padding(bottom = 16.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
                     Text(note ?: "OAF doesn't have a viewer for this kind of file.", style = MaterialTheme.typography.titleMedium)
                     Text("Below are its raw bytes. Another app might open it properly.", style = MaterialTheme.typography.bodySmall, color = paper.muted, modifier = Modifier.padding(vertical = 6.dp))
-                    Button(onClick = { openElsewhere(context, source) }) { Text("Open with another app") }
+                    Button(onClick = tap { openElsewhere(context, source) }) { Text("Open with another app") }
                 }
             }
             items(rows.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()) { i ->

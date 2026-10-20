@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.edit
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -203,7 +204,7 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit, start: MediaOutput? = nu
             if (isVideo) AndroidView({ PlayerView(it).apply { useController = false; this.player = player } }, Modifier.fillMaxSize())
             else Icon(Icons.Rounded.GraphicEq, null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(96.dp))
             FilledTonalIconButton(
-                onClick = { if (player.isPlaying) player.pause() else { if (position !in startMs..endMs) player.seekTo(startMs); player.play() } },
+                onClick = tap { if (player.isPlaying) player.pause() else { if (position !in startMs..endMs) player.seekTo(startMs); player.play() } },
                 modifier = Modifier.align(Alignment.BottomStart).padding(12.dp).size(52.dp),
             ) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause" else "Play") }
         }
@@ -218,8 +219,8 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit, start: MediaOutput? = nu
                 Text(formatTime(endMs), style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
             }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = { if (duration > 0) range = (position.toFloat() / duration).coerceAtMost(range.endInclusive - 0.002f)..range.endInclusive }, modifier = Modifier.weight(1f)) { Text("Start here") }
-                FilledTonalButton(onClick = { if (duration > 0) range = range.start..(position.toFloat() / duration).coerceAtLeast(range.start + 0.002f) }, modifier = Modifier.weight(1f)) { Text("End here") }
+                FilledTonalButton(onClick = tap { if (duration > 0) range = (position.toFloat() / duration).coerceAtMost(range.endInclusive - 0.002f)..range.endInclusive }, modifier = Modifier.weight(1f)) { Text("Start here") }
+                FilledTonalButton(onClick = tap { if (duration > 0) range = range.start..(position.toFloat() / duration).coerceAtLeast(range.start + 0.002f) }, modifier = Modifier.weight(1f)) { Text("End here") }
             }
         }
         SectionLabel("Save as")
@@ -240,7 +241,7 @@ fun MediaEditor(source: DocSource, onClose: () -> Unit, start: MediaOutput? = nu
                     if (picture == null) "Uses the song's cover, or a plain card with its name if it has none." else "Uses the picture you chose.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
                 )
-                FilledTonalButton(onClick = { pickPicture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("Choose picture") }
+                FilledTonalButton(onClick = tap { pickPicture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Text("Choose picture") }
             }
         }
         if (output == MediaOutput.AUDIO) {

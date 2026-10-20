@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers.pdf
 
+import com.prempoddar.oaf.ui.design.tap
 import com.prempoddar.oaf.pdf.PdfElement
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
@@ -251,7 +252,7 @@ private fun FieldOverlay(f: PdfField, x: androidx.compose.ui.unit.Dp, y: android
             var open by remember { mutableStateOf(false) }
             Box(base.clickable { open = true }) {
                 DropdownMenu(open, onDismissRequest = { open = false }) {
-                    f.options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { open = false; actions.fieldText(f, o) }) }
+                    f.options.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = tap { open = false; actions.fieldText(f, o) }) }
                 }
             }
         }

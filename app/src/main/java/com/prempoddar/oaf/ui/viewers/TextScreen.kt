@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import com.prempoddar.oaf.export.PrintHtml
@@ -209,29 +210,29 @@ fun TextScreen(source: DocSource, onBack: () -> Unit) {
             val twoModes = loaded is TextLoaded.Small && (source.kind == FileKind.MARKDOWN || source.kind == FileKind.HTML)
             if (twoModes) ModeSwitch(editing, onView = { editing = false; rendered = true; findOpen = false }, onEdit = { editing = true; rendered = false; chrome.show() })
             if (editing) {
-                IconButton(enabled = undo.isNotEmpty(), onClick = { redo += value; value = undo.removeAt(undo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
-                IconButton(enabled = redo.isNotEmpty(), onClick = { undo += value; value = redo.removeAt(redo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
-                IconButton(onClick = { findOpen = !findOpen }) { Icon(Icons.Rounded.Search, "Find and replace") }
-                IconButton(enabled = dirty, onClick = ::save) { Icon(Icons.Rounded.Save, "Save") }
+                IconButton(enabled = undo.isNotEmpty(), onClick = tap { redo += value; value = undo.removeAt(undo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
+                IconButton(enabled = redo.isNotEmpty(), onClick = tap { undo += value; value = redo.removeAt(redo.lastIndex) }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
+                IconButton(onClick = tap { findOpen = !findOpen }) { Icon(Icons.Rounded.Search, "Find and replace") }
+                IconButton(enabled = dirty, onClick = tap(::save)) { Icon(Icons.Rounded.Save, "Save") }
             } else if (loaded is TextLoaded.Small && !twoModes) {
-                IconButton(onClick = { editing = true; rendered = false; pretty = false; chrome.show() }) { Icon(Icons.Rounded.Edit, "Edit") }
+                IconButton(onClick = tap { editing = true; rendered = false; pretty = false; chrome.show() }) { Icon(Icons.Rounded.Edit, "Edit") }
             }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     if (!editing && (source.kind == FileKind.MARKDOWN || source.kind == FileKind.HTML)) {
-                        DropdownMenuItem(text = { Text(if (rendered) "Show source" else "Show formatted") }, onClick = { menu = false; rendered = !rendered })
+                        DropdownMenuItem(text = { Text(if (rendered) "Show source" else "Show formatted") }, onClick = tap { menu = false; rendered = !rendered })
                     }
                     if (!editing && (source.kind == FileKind.JSON || source.kind == FileKind.XML)) {
-                        DropdownMenuItem(text = { Text(if (pretty) "Show as saved" else "Format nicely") }, onClick = { menu = false; pretty = !pretty })
+                        DropdownMenuItem(text = { Text(if (pretty) "Show as saved" else "Format nicely") }, onClick = tap { menu = false; pretty = !pretty })
                     }
-                    DropdownMenuItem(text = { Text(if (wrap) "Don't wrap lines" else "Wrap lines") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.WrapText, null) }, onClick = { menu = false; wrap = !wrap })
-                    DropdownMenuItem(text = { Text("Larger text") }, onClick = { menu = false; fontScale = (fontScale + 0.15f).coerceAtMost(2.5f) })
-                    DropdownMenuItem(text = { Text("Smaller text") }, onClick = { menu = false; fontScale = (fontScale - 0.15f).coerceAtLeast(0.6f) })
-                    if (editing) DropdownMenuItem(text = { Text("Save a copy…") }, onClick = { menu = false; saveCopy.launch(source.name) })
-                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = { menu = false; (loaded as? TextLoaded.Small)?.let { l -> Printing.printHtml(context, source.name, PrintHtml.text(source.name, if (editing) value.text else l.text, markdown = source.kind == FileKind.MARKDOWN)) } })
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
-                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    DropdownMenuItem(text = { Text(if (wrap) "Don't wrap lines" else "Wrap lines") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.WrapText, null) }, onClick = tap { menu = false; wrap = !wrap })
+                    DropdownMenuItem(text = { Text("Larger text") }, onClick = tap { menu = false; fontScale = (fontScale + 0.15f).coerceAtMost(2.5f) })
+                    DropdownMenuItem(text = { Text("Smaller text") }, onClick = tap { menu = false; fontScale = (fontScale - 0.15f).coerceAtLeast(0.6f) })
+                    if (editing) DropdownMenuItem(text = { Text("Save a copy…") }, onClick = tap { menu = false; saveCopy.launch(source.name) })
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = tap { menu = false; (loaded as? TextLoaded.Small)?.let { l -> Printing.printHtml(context, source.name, PrintHtml.text(source.name, if (editing) value.text else l.text, markdown = source.kind == FileKind.MARKDOWN)) } })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = tap { menu = false; shareSource(context, source) })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openElsewhere(context, source) })
                 }
             }
         },
@@ -277,8 +278,8 @@ fun TextScreen(source: DocSource, onBack: () -> Unit) {
             onDismissRequest = { confirmLeave = false },
             title = { Text("Save changes?") },
             text = { Text("You've edited ${source.name}.") },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; save(); onBack() }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { confirmLeave = false; onBack() }) { Text("Discard") } },
+            confirmButton = { TextButton(onClick = tap { confirmLeave = false; save(); onBack() }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = tap { confirmLeave = false; onBack() }) { Text("Discard") } },
         )
     }
 }
@@ -359,20 +360,20 @@ private fun FindBar(value: TextFieldValue, onChange: (TextFieldValue) -> Unit, o
                 TextField(find, { find = it; current = 0 }, placeholder = { Text("Find") }, singleLine = true, modifier = Modifier.weight(1f),
                     colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
                 Text(if (hits.isEmpty()) "0" else "${current + 1}/${hits.size}", style = MaterialTheme.typography.labelMedium, color = paper.muted, modifier = Modifier.padding(horizontal = 6.dp))
-                IconButton(onClick = { select(current - 1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
-                IconButton(onClick = { select(current + 1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
-                IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Close") }
+                IconButton(onClick = tap { select(current - 1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
+                IconButton(onClick = tap { select(current + 1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
+                IconButton(onClick = tap(onClose)) { Icon(Icons.Rounded.Close, "Close") }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextField(replace, { replace = it }, placeholder = { Text("Replace with") }, singleLine = true, modifier = Modifier.weight(1f),
                     colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
-                TextButton(onClick = { matchCase = !matchCase }) { Text(if (matchCase) "Aa ✓" else "Aa", fontSize = 13.sp) }
-                TextButton(enabled = hits.isNotEmpty(), onClick = {
+                TextButton(onClick = tap { matchCase = !matchCase }) { Text(if (matchCase) "Aa ✓" else "Aa", fontSize = 13.sp) }
+                TextButton(enabled = hits.isNotEmpty(), onClick = tap {
                     val r = hits[current.coerceIn(hits.indices)]
                     val t = value.text.replaceRange(r, replace)
                     onChange(TextFieldValue(t, TextRange(r.first + replace.length)))
                 }) { Text("Replace") }
-                TextButton(enabled = hits.isNotEmpty(), onClick = {
+                TextButton(enabled = hits.isNotEmpty(), onClick = tap {
                     val t = value.text.replace(find, replace, ignoreCase = !matchCase)
                     onChange(TextFieldValue(t, TextRange(0)))
                 }) { Text("All") }

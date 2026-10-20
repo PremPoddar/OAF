@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -91,8 +92,8 @@ fun RenameDialog(file: File, onDismiss: () -> Unit, onRename: (String) -> Unit) 
         onDismissRequest = onDismiss,
         title = { Text("Rename") },
         text = { NameField(value, { value = it }, "Name", onDone = { if (error == null) onRename(value.text.trim()) }, error.takeIf { value.text != file.name }) },
-        confirmButton = { TextButton(enabled = error == null && value.text != file.name, onClick = { onRename(value.text.trim()) }) { Text("Rename") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(enabled = error == null && value.text != file.name, onClick = tap { onRename(value.text.trim()) }) { Text("Rename") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -112,8 +113,8 @@ fun NewItemDialog(dir: File, onDismiss: () -> Unit, onCreate: (name: String, fol
                 NameField(value, { value = it }, if (folder) "Folder name" else "File name, like notes.txt", onDone = { if (error == null) onCreate(value.text.trim(), folder) }, error.takeIf { value.text.isNotEmpty() })
             }
         },
-        confirmButton = { TextButton(enabled = error == null, onClick = { onCreate(value.text.trim(), folder) }) { Text("Create") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(enabled = error == null, onClick = tap { onCreate(value.text.trim(), folder) }) { Text("Create") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -139,8 +140,8 @@ fun BatchRenameDialog(files: List<File>, onDismiss: () -> Unit, onRename: (patte
                 if (files.size > 4) Text("and ${files.size - 4} more", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        confirmButton = { TextButton(enabled = !clash && pattern.text.isNotBlank(), onClick = { onRename(pattern.text, first) }) { Text("Rename") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(enabled = !clash && pattern.text.isNotBlank(), onClick = tap { onRename(pattern.text, first) }) { Text("Rename") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -162,9 +163,9 @@ fun ConflictDialog(question: Clipboard.Question) {
         },
         confirmButton = {
             Row {
-                TextButton(onClick = { answer(Transfer.Resolution.SKIP) }) { Text("Skip") }
-                TextButton(onClick = { answer(Transfer.Resolution.KEEP_BOTH) }) { Text("Keep both") }
-                TextButton(onClick = { answer(Transfer.Resolution.REPLACE) }) { Text("Replace") }
+                TextButton(onClick = tap { answer(Transfer.Resolution.SKIP) }) { Text("Skip") }
+                TextButton(onClick = tap { answer(Transfer.Resolution.KEEP_BOTH) }) { Text("Keep both") }
+                TextButton(onClick = tap { answer(Transfer.Resolution.REPLACE) }) { Text("Replace") }
             }
         },
     )

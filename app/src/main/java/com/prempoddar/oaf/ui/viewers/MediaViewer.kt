@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
 import com.prempoddar.oaf.ui.edit.MediaOutput
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -300,9 +301,9 @@ private fun speedLabel(s: Float) = "${s.toString().removeSuffix(".0")}×"
 private fun SpeedButton(state: PlayerState, tint: Color) {
     var open by remember { mutableStateOf(false) }
     Box {
-        TextButton(onClick = { open = true }) { Text(speedLabel(state.speed), color = tint, style = MaterialTheme.typography.labelLarge) }
+        TextButton(onClick = tap { open = true }) { Text(speedLabel(state.speed), color = tint, style = MaterialTheme.typography.labelLarge) }
         DropdownMenu(open, onDismissRequest = { open = false }) {
-            speeds.forEach { s -> DropdownMenuItem(text = { Text(if (s == 1f) "Normal" else speedLabel(s)) }, onClick = { open = false; state.player.setPlaybackSpeed(s) }) }
+            speeds.forEach { s -> DropdownMenuItem(text = { Text(if (s == 1f) "Normal" else speedLabel(s)) }, onClick = tap { open = false; state.player.setPlaybackSpeed(s) }) }
         }
     }
 }
@@ -358,12 +359,12 @@ private fun SleepChoices(modifier: Modifier = Modifier, onPicked: () -> Unit = {
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(5, 10, 15, 30, 45, 60, 90).forEach { m ->
-                FilterChip(false, onClick = { SleepTimer.minutes(m); onPicked() }, label = { Text(if (m < 60) "$m min" else if (m == 60) "1 hour" else "1 h 30") })
+                FilterChip(false, onClick = tap { SleepTimer.minutes(m); onPicked() }, label = { Text(if (m < 60) "$m min" else if (m == 60) "1 hour" else "1 h 30") })
             }
-            FilterChip(timer == SleepTimer.State.EndOfTrack, onClick = { SleepTimer.endOfTrack(); onPicked() }, label = { Text("End of this one") })
+            FilterChip(timer == SleepTimer.State.EndOfTrack, onClick = tap { SleepTimer.endOfTrack(); onPicked() }, label = { Text("End of this one") })
         }
         if (timer != SleepTimer.State.Off) {
-            OutlinedButton(onClick = { SleepTimer.cancel(); onPicked() }, modifier = Modifier.padding(top = 12.dp).fillMaxWidth()) { Text("Turn off the timer") }
+            OutlinedButton(onClick = tap { SleepTimer.cancel(); onPicked() }, modifier = Modifier.padding(top = 12.dp).fillMaxWidth()) { Text("Turn off the timer") }
         }
     }
 }
@@ -404,18 +405,18 @@ internal fun AudioPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
     Box(Modifier.fillMaxSize().background(scheme.background).background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.75f), tint.copy(alpha = 0.15f), scheme.background)))) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("PLAYING FROM", style = MaterialTheme.typography.labelSmall, color = dim)
                     Text(source.file?.parentFile?.name ?: "Your files", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                    IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                     DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("Trim or convert") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = { menu = false; onEdit(null) })
-                        DropdownMenuItem(text = { Text("Make a video") }, leadingIcon = { Icon(Icons.Rounded.Movie, null) }, onClick = { menu = false; onEdit(MediaOutput.PICTURE_VIDEO) })
-                        DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = { menu = false; shareSource(context, source) })
-                        DropdownMenuItem(text = { Text("Open with…") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, null) }, onClick = { menu = false; openElsewhere(context, source) })
+                        DropdownMenuItem(text = { Text("Trim or convert") }, leadingIcon = { Icon(Icons.Rounded.Edit, null) }, onClick = tap { menu = false; onEdit(null) })
+                        DropdownMenuItem(text = { Text("Make a video") }, leadingIcon = { Icon(Icons.Rounded.Movie, null) }, onClick = tap { menu = false; onEdit(MediaOutput.PICTURE_VIDEO) })
+                        DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = tap { menu = false; shareSource(context, source) })
+                        DropdownMenuItem(text = { Text("Open with…") }, leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, null) }, onClick = tap { menu = false; openElsewhere(context, source) })
                     }
                 }
             }
@@ -430,18 +431,18 @@ internal fun AudioPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                 Text(state.artist ?: "Unknown artist", style = MaterialTheme.typography.titleMedium, color = dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
                 SeekRow(state, active = fg, track = fg.copy(alpha = 0.18f), text = dim, modifier = Modifier.padding(top = 16.dp))
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { state.player.shuffleModeEnabled = !state.shuffle }) {
+                    IconButton(onClick = tap { state.player.shuffleModeEnabled = !state.shuffle }) {
                         Icon(Icons.Rounded.Shuffle, if (state.shuffle) "Shuffle on" else "Shuffle off", tint = if (state.shuffle) scheme.primary else dim)
                     }
-                    IconButton(onClick = { state.player.seekToPrevious() }, modifier = Modifier.size(64.dp)) { Icon(Icons.Rounded.SkipPrevious, "Previous", Modifier.size(44.dp), tint = fg) }
+                    IconButton(onClick = tap { state.player.seekToPrevious() }, modifier = Modifier.size(64.dp)) { Icon(Icons.Rounded.SkipPrevious, "Previous", Modifier.size(44.dp), tint = fg) }
                     Surface(onClick = { state.toggle() }, shape = CircleShape, color = fg, contentColor = scheme.background, modifier = Modifier.size(76.dp)) {
                         Box(contentAlignment = Alignment.Center) {
                             if (state.buffering) CircularProgressIndicator(Modifier.size(32.dp), color = scheme.background, strokeWidth = 3.dp)
                             else Icon(if (state.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (state.playing) "Pause" else "Play", Modifier.size(42.dp))
                         }
                     }
-                    IconButton(onClick = { state.player.seekToNext() }, modifier = Modifier.size(64.dp)) { Icon(Icons.Rounded.SkipNext, "Next", Modifier.size(44.dp), tint = fg) }
-                    IconButton(onClick = { state.cycleRepeat() }) {
+                    IconButton(onClick = tap { state.player.seekToNext() }, modifier = Modifier.size(64.dp)) { Icon(Icons.Rounded.SkipNext, "Next", Modifier.size(44.dp), tint = fg) }
+                    IconButton(onClick = tap { state.cycleRepeat() }) {
                         Icon(
                             if (state.repeat == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                             when (state.repeat) { Player.REPEAT_MODE_OFF -> "Repeat off"; Player.REPEAT_MODE_ALL -> "Repeat all"; else -> "Repeat one" },
@@ -452,7 +453,7 @@ internal fun AudioPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     SpeedButton(state, dim)
                     SleepButton(dim, scheme.primary)
-                    IconButton(onClick = { queue = true }, enabled = state.count > 1) { Icon(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", tint = if (state.count > 1) dim else dim.copy(alpha = 0.38f)) }
+                    IconButton(onClick = tap { queue = true }, enabled = state.count > 1) { Icon(Icons.AutoMirrored.Rounded.QueueMusic, "Up next", tint = if (state.count > 1) dim else dim.copy(alpha = 0.38f)) }
                 }
             }
             if (wide) {
@@ -497,7 +498,7 @@ internal fun AudioPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
 
 @Composable
 private fun VideoIcon(icon: ImageVector, label: String, size: Dp = 24.dp, onClick: () -> Unit) {
-    IconButton(onClick = onClick) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(size)) }
+    IconButton(onClick = tap(onClick)) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(size)) }
 }
 
 @OptIn(UnstableApi::class)
@@ -714,7 +715,7 @@ private fun VideoMoreSheet(
         Column(Modifier.navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
             Text("Playback speed", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                speeds.forEach { sp -> FilterChip(state.speed == sp, onClick = { state.player.setPlaybackSpeed(sp) }, label = { Text(if (sp == 1f) "Normal" else speedLabel(sp)) }) }
+                speeds.forEach { sp -> FilterChip(state.speed == sp, onClick = tap { state.player.setPlaybackSpeed(sp) }, label = { Text(if (sp == 1f) "Normal" else speedLabel(sp)) }) }
             }
             if (audioTracks.size > 1) {
                 Text("Sound track", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
@@ -722,7 +723,7 @@ private fun VideoMoreSheet(
                     audioTracks.forEachIndexed { n, (g, i) ->
                         val f = g.getTrackFormat(i)
                         val name = f.label ?: f.language?.let { java.util.Locale.forLanguageTag(it).displayLanguage.ifEmpty { it } } ?: "Track ${n + 1}"
-                        FilterChip(g.isTrackSelected(i), onClick = {
+                        FilterChip(g.isTrackSelected(i), onClick = tap {
                             state.player.trackSelectionParameters = state.player.trackSelectionParameters.buildUpon()
                                 .setOverrideForType(androidx.media3.common.TrackSelectionOverride(g.mediaTrackGroup, i)).build()
                         }, label = { Text(name) })

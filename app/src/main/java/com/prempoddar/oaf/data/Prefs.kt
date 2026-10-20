@@ -56,6 +56,7 @@ class Prefs(private val context: Context) {
         val dynamic = booleanPreferencesKey("dynamic")
         val accent = intPreferencesKey("accent")
         val black = booleanPreferencesKey("pure_black")
+        val look = stringPreferencesKey("look")
         val foldersFirst = booleanPreferencesKey("folders_first")
         val confirmDelete = booleanPreferencesKey("confirm_delete")
         val sort = stringPreferencesKey("sort")
@@ -76,6 +77,7 @@ class Prefs(private val context: Context) {
             p[K.theme] = n.appearance.mode.name
             p[K.dynamic] = n.appearance.dynamic
             p[K.black] = n.appearance.pureBlack
+            p[K.look] = n.appearance.extras()
             n.appearance.accent?.let { p[K.accent] = it } ?: p.remove(K.accent)
             p[K.foldersFirst] = n.foldersFirst
             p[K.confirmDelete] = n.confirmDelete
@@ -108,7 +110,7 @@ class Prefs(private val context: Context) {
                 dynamic = this[K.dynamic] ?: false,
                 accent = this[K.accent],
                 pureBlack = this[K.black] ?: false,
-            ),
+            ).withExtras(this[K.look]),
             foldersFirst = this[K.foldersFirst] ?: d.foldersFirst,
             confirmDelete = this[K.confirmDelete] ?: d.confirmDelete,
             sort = this[K.sort]?.let { runCatching { SortBy.valueOf(it) }.getOrNull() } ?: d.sort,

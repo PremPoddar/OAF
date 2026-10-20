@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.tap
 import android.content.Context
 import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
@@ -134,17 +135,17 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (selecting) {
-                    IconButton(onClick = { selected.clear() }) { Icon(Icons.Rounded.Close, "Clear selection") }
+                    IconButton(onClick = tap { selected.clear() }) { Icon(Icons.Rounded.Close, "Clear selection") }
                     Text("${selected.size} selected", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { list?.forEach { if (it.file !in selected) selected.add(it.file) } }) { Icon(Icons.Rounded.SelectAll, "Select all") }
+                    IconButton(onClick = tap { list?.forEach { if (it.file !in selected) selected.add(it.file) } }) { Icon(Icons.Rounded.SelectAll, "Select all") }
                 } else {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                    IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                     Column(Modifier.weight(1f)) {
                         Text(category.label, style = MaterialTheme.typography.titleLarge)
                         list?.let { l -> Text("${l.size} files · ${humanSize(l.sumOf { it.size })}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
-                    IconButton(onClick = { query = if (query == null) "" else null }) { Icon(if (query == null) Icons.Rounded.Search else Icons.Rounded.SearchOff, "Search") }
-                    IconButton(onClick = { sheet = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort and view") }
+                    IconButton(onClick = tap { query = if (query == null) "" else null }) { Icon(if (query == null) Icons.Rounded.Search else Icons.Rounded.SearchOff, "Search") }
+                    IconButton(onClick = tap { sheet = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort and view") }
                 }
             }
             if (query != null && !selecting) PillTextField(query!!, { query = it }, "Search ${category.label.lowercase()}", Modifier.padding(horizontal = 16.dp, vertical = 4.dp), leading = Icons.Rounded.Search)

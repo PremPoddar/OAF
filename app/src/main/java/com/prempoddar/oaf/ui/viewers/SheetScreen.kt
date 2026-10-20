@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.tap
+import com.prempoddar.oaf.ui.design.toggled
 import androidx.compose.material3.Checkbox
 import androidx.compose.material.icons.rounded.FindReplace
 import com.prempoddar.oaf.export.PrintHtml
@@ -312,23 +314,23 @@ private fun SheetBody(source: DocSource, l: SheetLoaded.Ready, onBack: () -> Uni
         chrome = rememberChrome(), autoHide = false,
         onBack = { if (dirty) confirmLeave = true else onBack() },
         actions = {
-            IconButton(enabled = editor.canUndo && !editing, onClick = { act { undo() } }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
-            IconButton(enabled = editor.canRedo && !editing, onClick = { act { redo() } }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
-            IconButton(enabled = dirty && !saving, onClick = { save() }) {
+            IconButton(enabled = editor.canUndo && !editing, onClick = tap { act { undo() } }) { Icon(Icons.AutoMirrored.Rounded.Undo, "Undo") }
+            IconButton(enabled = editor.canRedo && !editing, onClick = tap { act { redo() } }) { Icon(Icons.AutoMirrored.Rounded.Redo, "Redo") }
+            IconButton(enabled = dirty && !saving, onClick = tap { save() }) {
                 if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.Save, "Save")
             }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
+                IconButton(onClick = tap { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; finding = true })
-                    DropdownMenuItem(text = { Text("Go to cell…") }, onClick = { menu = false; goTo = true })
-                    DropdownMenuItem(text = { Text("Reset zoom") }, onClick = { menu = false; grid.zoom = 1f })
+                    DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = tap { menu = false; finding = true })
+                    DropdownMenuItem(text = { Text("Go to cell…") }, onClick = tap { menu = false; goTo = true })
+                    DropdownMenuItem(text = { Text("Reset zoom") }, onClick = tap { menu = false; grid.zoom = 1f })
                     HorizontalDivider()
-                    DropdownMenuItem(text = { Text("Save as Excel workbook…") }, onClick = { menu = false; saveAsXlsx.launch("$baseName.xlsx") })
-                    DropdownMenuItem(text = { Text("Export this sheet as CSV…") }, onClick = { menu = false; exportCsv.launch("$baseName - ${editor.sheet.name}.csv") })
-                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = { menu = false; Printing.printHtml(context, source.name, PrintHtml.sheet(source.name, editor.sheet)) })
-                    DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
-                    DropdownMenuItem(text = { Text("Open with…") }, onClick = { menu = false; openElsewhere(context, source) })
+                    DropdownMenuItem(text = { Text("Save as Excel workbook…") }, onClick = tap { menu = false; saveAsXlsx.launch("$baseName.xlsx") })
+                    DropdownMenuItem(text = { Text("Export this sheet as CSV…") }, onClick = tap { menu = false; exportCsv.launch("$baseName - ${editor.sheet.name}.csv") })
+                    DropdownMenuItem(text = { Text("Print or save as PDF…") }, onClick = tap { menu = false; Printing.printHtml(context, source.name, PrintHtml.sheet(source.name, editor.sheet)) })
+                    DropdownMenuItem(text = { Text("Share") }, onClick = tap { menu = false; shareSource(context, source) })
+                    DropdownMenuItem(text = { Text("Open with…") }, onClick = tap { menu = false; openElsewhere(context, source) })
                 }
             }
         },
@@ -386,13 +388,13 @@ private fun SheetBody(source: DocSource, l: SheetLoaded.Ready, onBack: () -> Uni
             title = { Text("Go to cell") },
             text = { OutlinedTextField(text, { text = it }, placeholder = { Text("For example B12") }, singleLine = true) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(onClick = tap {
                     val target = A1.parse(text.trim())
                     if (target != null) { act { select(target.first, target.second) }; grid.reveal(target.first, target.second); goTo = false }
                     else Toast.makeText(context, "That isn't a cell address", Toast.LENGTH_SHORT).show()
                 }) { Text("Go") }
             },
-            dismissButton = { TextButton(onClick = { goTo = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = tap { goTo = false }) { Text("Cancel") } },
         )
     }
 
@@ -401,8 +403,8 @@ private fun SheetBody(source: DocSource, l: SheetLoaded.Ready, onBack: () -> Uni
             onDismissRequest = { confirmLeave = false },
             title = { Text("Save changes?") },
             text = { Text(if (readOnlyFormat) "${source.kind.label} files are saved as a new Excel workbook." else "You've edited ${source.name}.") },
-            confirmButton = { TextButton(onClick = { confirmLeave = false; save(then = onBack) }) { Text("Save") } },
-            dismissButton = { TextButton(onClick = { confirmLeave = false; onBack() }) { Text("Discard") } },
+            confirmButton = { TextButton(onClick = tap { confirmLeave = false; save(then = onBack) }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = tap { confirmLeave = false; onBack() }) { Text("Discard") } },
         )
     }
 }
@@ -433,8 +435,8 @@ private fun FormulaBar(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             )
             if (editing) {
-                IconButton(onClick = onCancel, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Close, "Cancel") }
-                IconButton(onClick = onDone, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Check, "Enter", tint = paper.accent) }
+                IconButton(onClick = tap(onCancel), modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Close, "Cancel") }
+                IconButton(onClick = tap(onDone), modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Check, "Enter", tint = paper.accent) }
             }
         }
     }
@@ -495,19 +497,19 @@ private fun FormatBar(editor: SheetEditor, tick: Int, act: (SheetEditor.() -> Un
     var open by remember { mutableStateOf<String?>(null) }
     @Composable
     fun Toggle(on: Boolean, icon: ImageVector, label: String, change: (CellStyle) -> CellStyle) {
-        IconToggleButton(checked = on, onCheckedChange = { act { style(change) } }) {
+        IconToggleButton(checked = on, onCheckedChange = toggled { act { style(change) } }) {
             Icon(icon, label, tint = if (on) paper.accent else paper.ink)
         }
     }
     @Composable
     fun Menu(key: String, icon: ImageVector, label: String, content: @Composable () -> Unit) {
         Box {
-            IconButton(onClick = { open = key }) { Icon(icon, label) }
+            IconButton(onClick = tap { open = key }) { Icon(icon, label) }
             DropdownMenu(open == key, onDismissRequest = { open = null }) { content() }
         }
     }
     fun item(text: String, run: SheetEditor.() -> Unit): @Composable () -> Unit = {
-        DropdownMenuItem(text = { Text(text) }, onClick = { open = null; act(run) })
+        DropdownMenuItem(text = { Text(text) }, onClick = tap { open = null; act(run) })
     }
 
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -517,7 +519,7 @@ private fun FormatBar(editor: SheetEditor, tick: Int, act: (SheetEditor.() -> Un
             Toggle(style.underline, Icons.Rounded.FormatUnderlined, "Underline") { it.copy(underline = !style.underline) }
             Toggle(style.strike, Icons.Rounded.FormatStrikethrough, "Strikethrough") { it.copy(strike = !style.strike) }
             val alignIcon = when (style.align) { CellStyle.Align.CENTER -> Icons.Rounded.FormatAlignCenter; CellStyle.Align.RIGHT -> Icons.AutoMirrored.Rounded.FormatAlignRight; else -> Icons.AutoMirrored.Rounded.FormatAlignLeft }
-            IconButton(onClick = {
+            IconButton(onClick = tap {
                 val next = when (style.align) { CellStyle.Align.GENERAL, CellStyle.Align.LEFT -> CellStyle.Align.CENTER; CellStyle.Align.CENTER -> CellStyle.Align.RIGHT; CellStyle.Align.RIGHT -> CellStyle.Align.GENERAL }
                 act { style { it.copy(align = next) } }
             }) { Icon(alignIcon, "Alignment", tint = if (style.align != CellStyle.Align.GENERAL) paper.accent else paper.ink) }
@@ -528,21 +530,21 @@ private fun FormatBar(editor: SheetEditor, tick: Int, act: (SheetEditor.() -> Un
                 Swatches(TEXT_COLOURS, style.color) { c -> open = null; act { style { it.copy(color = c) } } }
             }
             Box {
-                TextButton(onClick = { open = "fmt" }) { Text("123", style = MaterialTheme.typography.labelLarge, color = if (style.numFmt != null) paper.accent else paper.ink) }
+                TextButton(onClick = tap { open = "fmt" }) { Text("123", style = MaterialTheme.typography.labelLarge, color = if (style.numFmt != null) paper.accent else paper.ink) }
                 DropdownMenu(open == "fmt", onDismissRequest = { open = null }) {
                     NUMBER_FORMATS.forEach { (label, code) ->
                         DropdownMenuItem(
                             text = { Text(label, fontWeight = if (style.numFmt == code) FontWeight.SemiBold else FontWeight.Normal) },
-                            onClick = { open = null; act { style { it.copy(numFmt = code) } } },
+                            onClick = tap { open = null; act { style { it.copy(numFmt = code) } } },
                         )
                     }
                 }
             }
-            IconButton(onClick = { act { style { CellStyle.DEFAULT } } }) { Icon(Icons.Rounded.FormatClear, "Clear formatting") }
+            IconButton(onClick = tap { act { style { CellStyle.DEFAULT } } }) { Icon(Icons.Rounded.FormatClear, "Clear formatting") }
             VerticalDivider(Modifier.height(24.dp).padding(horizontal = 4.dp))
-            IconButton(onClick = { onCopy(false) }) { Icon(Icons.Rounded.ContentCopy, "Copy") }
-            IconButton(onClick = { onCopy(true) }) { Icon(Icons.Rounded.ContentCut, "Cut") }
-            IconButton(enabled = canPaste, onClick = onPaste) { Icon(Icons.Rounded.ContentPaste, "Paste") }
+            IconButton(onClick = tap { onCopy(false) }) { Icon(Icons.Rounded.ContentCopy, "Copy") }
+            IconButton(onClick = tap { onCopy(true) }) { Icon(Icons.Rounded.ContentCut, "Cut") }
+            IconButton(enabled = canPaste, onClick = tap(onPaste)) { Icon(Icons.Rounded.ContentPaste, "Paste") }
             VerticalDivider(Modifier.height(24.dp).padding(horizontal = 4.dp))
             Menu("rows", Icons.Rounded.TableRows, "Rows and columns") {
                 item("Insert row above") { insertRows(below = false) }()
@@ -563,8 +565,8 @@ private fun FormatBar(editor: SheetEditor, tick: Int, act: (SheetEditor.() -> Un
                 item("Sort A → Z by this column") { sort(ascending = true) }()
                 item("Sort Z → A by this column") { sort(ascending = false) }()
             }
-            TextButton(onClick = { act { autoSum() } }) { Text("Σ", style = MaterialTheme.typography.titleMedium, color = paper.ink) }
-            IconButton(onClick = { open = "replace" }) { Icon(Icons.Rounded.FindReplace, "Replace") }
+            TextButton(onClick = tap { act { autoSum() } }) { Text("Σ", style = MaterialTheme.typography.titleMedium, color = paper.ink) }
+            IconButton(onClick = tap { open = "replace" }) { Icon(Icons.Rounded.FindReplace, "Replace") }
         }
     }
     if (open == "replace") ReplaceDialog(onDismiss = { open = null }) { find, with, matchCase ->
@@ -594,13 +596,13 @@ private fun ReplaceDialog(onDismiss: () -> Unit, onReplace: (String, String, Boo
             }
         },
         confirmButton = {
-            TextButton(enabled = find.isNotEmpty(), onClick = {
+            TextButton(enabled = find.isNotEmpty(), onClick = tap {
                 val n = onReplace(find, with, matchCase)
                 Toast.makeText(context, if (n == 0) "Nothing found" else "Replaced in $n cell${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 onDismiss()
             }) { Text("Replace all") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
     )
 }
 
@@ -619,7 +621,7 @@ private fun Swatches(colours: List<Int>, selected: Int?, onPick: (Int?) -> Unit)
                 }
             }
         }
-        TextButton(onClick = { onPick(null) }) { Text("None") }
+        TextButton(onClick = tap { onPick(null) }) { Text("None") }
     }
 }
 
@@ -647,9 +649,9 @@ private fun FindBar(editor: SheetEditor, onGo: (Int, Int) -> Unit, onClose: () -
                 modifier = Modifier.weight(1f),
             )
             Text(if (hits.isEmpty()) "0" else "${index + 1}/${hits.size}", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 8.dp))
-            IconButton(onClick = { go(-1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
-            IconButton(onClick = { go(1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
-            IconButton(onClick = onClose) { Icon(Icons.Rounded.Close, "Close") }
+            IconButton(onClick = tap { go(-1) }) { Icon(Icons.Rounded.KeyboardArrowUp, "Previous") }
+            IconButton(onClick = tap { go(1) }) { Icon(Icons.Rounded.KeyboardArrowDown, "Next") }
+            IconButton(onClick = tap(onClose)) { Icon(Icons.Rounded.Close, "Close") }
         }
     }
 }
@@ -676,15 +678,15 @@ private fun SheetTabs(editor: SheetEditor, tick: Int, allowAdd: Boolean, act: (S
                                 .padding(horizontal = 14.dp, vertical = 6.dp),
                         )
                         DropdownMenu(menuFor == i, onDismissRequest = { menuFor = null }) {
-                            DropdownMenuItem(text = { Text("Rename") }, onClick = { menuFor = null; renaming = i })
-                            if (i > 0) DropdownMenuItem(text = { Text("Move left") }, onClick = { menuFor = null; act { moveSheet(i, i - 1) } })
-                            if (i < names.lastIndex) DropdownMenuItem(text = { Text("Move right") }, onClick = { menuFor = null; act { moveSheet(i, i + 1) } })
-                            if (names.size > 1) DropdownMenuItem(text = { Text("Delete") }, onClick = { menuFor = null; act { deleteSheet(i) } })
+                            DropdownMenuItem(text = { Text("Rename") }, onClick = tap { menuFor = null; renaming = i })
+                            if (i > 0) DropdownMenuItem(text = { Text("Move left") }, onClick = tap { menuFor = null; act { moveSheet(i, i - 1) } })
+                            if (i < names.lastIndex) DropdownMenuItem(text = { Text("Move right") }, onClick = tap { menuFor = null; act { moveSheet(i, i + 1) } })
+                            if (names.size > 1) DropdownMenuItem(text = { Text("Delete") }, onClick = tap { menuFor = null; act { deleteSheet(i) } })
                         }
                     }
                 }
             }
-            if (allowAdd) IconButton(onClick = { act { addSheet() } }) { Icon(Icons.Rounded.Add, "Add sheet") }
+            if (allowAdd) IconButton(onClick = tap { act { addSheet() } }) { Icon(Icons.Rounded.Add, "Add sheet") }
             Spacer(Modifier.width(4.dp))
         }
     }
@@ -695,13 +697,13 @@ private fun SheetTabs(editor: SheetEditor, tick: Int, allowAdd: Boolean, act: (S
             title = { Text("Rename sheet") },
             text = { OutlinedTextField(text, { text = it }, singleLine = true) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(onClick = tap {
                     var ok = false
                     act { ok = renameSheet(i, text) }
                     if (ok) renaming = null else Toast.makeText(context, "Use a new name without [ ] : * ? / \\", Toast.LENGTH_SHORT).show()
                 }) { Text("Rename") }
             },
-            dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = tap { renaming = null }) { Text("Cancel") } },
         )
     }
 }

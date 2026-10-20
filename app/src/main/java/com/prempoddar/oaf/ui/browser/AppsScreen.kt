@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.tap
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -118,12 +119,12 @@ fun AppsScreen(onBack: () -> Unit) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (selected.isNotEmpty()) {
-                    IconButton(onClick = { selected.clear() }) { Icon(Icons.Rounded.Close, "Clear selection") }
+                    IconButton(onClick = tap { selected.clear() }) { Icon(Icons.Rounded.Close, "Clear selection") }
                     Text("${selected.size} selected", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { export(selected.mapNotNull { byPkg[it] }, share = true); selected.clear() }) { Icon(Icons.Rounded.Share, "Share") }
-                    IconButton(onClick = { export(selected.mapNotNull { byPkg[it] }, share = false); selected.clear() }) { Icon(Icons.Rounded.Download, "Save to Downloads") }
+                    IconButton(onClick = tap { export(selected.mapNotNull { byPkg[it] }, share = true); selected.clear() }) { Icon(Icons.Rounded.Share, "Share") }
+                    IconButton(onClick = tap { export(selected.mapNotNull { byPkg[it] }, share = false); selected.clear() }) { Icon(Icons.Rounded.Download, "Save to Downloads") }
                 } else {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                    IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                     Column(Modifier.weight(1f)) {
                         Text("Apps", style = MaterialTheme.typography.titleLarge)
                         list?.let { Text("${it.size} app${if (it.size == 1) "" else "s"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -164,7 +165,7 @@ fun AppsScreen(onBack: () -> Unit) {
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
                                 )
                             }
-                            if (selected.isEmpty()) IconButton(onClick = { export(listOf(app), share = true) }) {
+                            if (selected.isEmpty()) IconButton(onClick = tap { export(listOf(app), share = true) }) {
                                 Icon(Icons.Rounded.Share, "Share ${app.label}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }

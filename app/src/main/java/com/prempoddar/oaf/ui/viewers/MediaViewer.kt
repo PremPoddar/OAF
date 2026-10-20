@@ -1,5 +1,19 @@
 package com.prempoddar.oaf.ui.viewers
 
+import com.prempoddar.oaf.ui.design.Haptics
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material.icons.rounded.Replay
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.ZoomOut
+import androidx.compose.material.icons.rounded.ZoomIn
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.graphics.graphicsLayer
 import com.prempoddar.oaf.ui.design.tap
 import com.prempoddar.oaf.ui.edit.MediaOutput
 import androidx.compose.foundation.rememberScrollState
@@ -514,6 +528,18 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
     var fit by remember { mutableStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var more by remember { mutableStateOf(false) }
     var brightness by remember { mutableFloatStateOf(activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0 } ?: 0.5f) }
+    // Pinch to zoom in on the picture and move around it.
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var pan by remember { mutableStateOf(Offset.Zero) }
+    var view by remember { mutableStateOf<PlayerView?>(null) }
+    var subtitleSize by remember { mutableFloatStateOf(1f) }
+    var subtitleBox by remember { mutableStateOf(false) }
+    // A-B repeat: the part between two points plays over and over.
+    var loopA by remember { mutableStateOf<Long?>(null) }
+    var loopB by remember { mutableStateOf<Long?>(null) }
+    var resumedFrom by remember { mutableStateOf<Long?>(null) }
+    val scope = rememberCoroutineScope()
+    val key = source.uri.toString()
     val loadSubs = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         val p = state.player
@@ -540,7 +566,41 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
-    BackHandler { if (locked) controls = true else onBack() }
+    // Carry on where this video was left last time, with a way back to the start.
+    LaunchedEffect(key) {
+        if (source.isStream) return@LaunchedEffect
+        val saved = com.prempoddar.oaf.AppGraph.prefs.position(key).toLong()
+        if (saved < 5_000) return@LaunchedEffect
+        while (state.duration <= 0) delay(100)
+        if (saved < state.duration - 10_000) { state.player.seekTo(saved); resumedFrom = saved; delay(6_000); resumedFrom = null }
+    }
+    LaunchedEffect(key, state.playing) {
+        if (source.isStream) return@LaunchedEffect
+        while (true) {
+            val at = state.player.currentPosition
+            val near = state.duration > 0 && at > state.duration - 5_000
+            com.prempoddar.oaf.AppGraph.prefs.savePosition(key, if (near) 0 else at.toInt())
+            if (!state.playing) break
+            delay(5_000)
+        }
+    }
+    LaunchedEffect(loopA, loopB) {
+        val a = loopA ?: return@LaunchedEffect
+        val b = loopB ?: return@LaunchedEffect
+        while (true) { if (state.player.currentPosition >= b) state.player.seekTo(a); delay(100) }
+    }
+    LaunchedEffect(view, subtitleSize, subtitleBox) {
+        view?.subtitleView?.let { sv ->
+            sv.setFractionalTextSize(androidx.media3.ui.SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * subtitleSize)
+            sv.setStyle(
+                androidx.media3.ui.CaptionStyleCompat(
+                    android.graphics.Color.WHITE, if (subtitleBox) 0x99000000.toInt() else android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT,
+                    if (subtitleBox) androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_NONE else androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE, android.graphics.Color.BLACK, null,
+                ),
+            )
+        }
+    }
+    BackHandler { if (locked) controls = true else if (zoom != 1f) { zoom = 1f; pan = Offset.Zero } else onBack() }
     LaunchedEffect(controls, state.playing, locked) { if (controls && (state.playing || locked)) { delay(if (locked) 2000 else 3500); controls = false } }
     LaunchedEffect(feedback) { if (feedback != null) { delay(700); feedback = null } }
 
@@ -548,13 +608,33 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
         AndroidView(
-            factory = { PlayerView(it).apply { useController = false; player = state.player; setKeepContentOnPlayerReset(true); setShutterBackgroundColor(android.graphics.Color.BLACK) } },
+            factory = { PlayerView(it).apply { useController = false; player = state.player; setKeepContentOnPlayerReset(true); setShutterBackgroundColor(android.graphics.Color.BLACK) }.also { v -> view = v } },
             update = { it.resizeMode = fit; if (it.player !== state.player) it.player = state.player },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y },
         )
         if (!inPip) {
             Box(
                 Modifier.fillMaxSize()
+                    .pointerInput(locked) {
+                        if (locked) return@pointerInput
+                        // Two fingers zoom and move the picture; they're taken before the one-finger
+                        // gestures (seek, brightness, volume) can see them.
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                if (event.changes.count { it.pressed } >= 2) {
+                                    val z = event.calculateZoom(); val p = event.calculatePan()
+                                    val next = (zoom * z).coerceIn(1f, 5f)
+                                    val limitX = w * (next - 1) / 2; val limitY = h * (next - 1) / 2
+                                    zoom = next
+                                    pan = if (next == 1f) Offset.Zero else Offset((pan.x + p.x).coerceIn(-limitX, limitX), (pan.y + p.y).coerceIn(-limitY, limitY))
+                                    feedback = Triple(Icons.Rounded.ZoomIn, "${(zoom * 100).toInt()}%", Alignment.Center)
+                                    event.changes.forEach { it.consume() }
+                                }
+                            } while (event.changes.any { it.pressed })
+                        }
+                    }
                     .pointerInput(locked) {
                         detectTapGestures(
                             onTap = { controls = !controls },
@@ -603,6 +683,17 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                     },
             )
             if (state.buffering) CircularProgressIndicator(Modifier.align(Alignment.Center).size(56.dp), color = Color.White, strokeWidth = 4.dp)
+            resumedFrom?.let { from ->
+                Surface(
+                    onClick = { Haptics.tap(); state.player.seekTo(0); resumedFrom = null }, color = Color.Black.copy(alpha = 0.6f), contentColor = Color.White, shape = CircleShape,
+                    modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 20.dp, bottom = 120.dp),
+                ) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Replay, null, Modifier.size(18.dp))
+                        Text("Resumed at ${formatTime(from)} · Start over", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
             feedback?.let { (icon, text, where) ->
                 Surface(color = Color.Black.copy(alpha = 0.55f), contentColor = Color.White, shape = CircleShape, modifier = Modifier.align(where).padding(horizontal = 48.dp)) {
                     Row(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -657,8 +748,17 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                                 Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     GlassPill(Icons.Rounded.Lock, "Lock") { locked = true }
                                     GlassPill(Icons.Rounded.Speed, speedLabel(state.speed)) { more = true }
+                                    if (!state.playing) {
+                                        // One frame at a time, for finding the exact moment.
+                                        GlassPill(Icons.Rounded.ChevronLeft, "Frame") { stepFrame(state, -1) }
+                                        GlassPill(Icons.Rounded.ChevronRight, "Frame") { stepFrame(state, 1) }
+                                    }
+                                    if (loopA != null) GlassPill(Icons.Rounded.Repeat, if (loopB == null) "A…" else "A–B") { loopA = null; loopB = null }
+                                    if (zoom != 1f) GlassPill(Icons.Rounded.ZoomOut, "${(zoom * 100).toInt()}%") { zoom = 1f; pan = Offset.Zero }
                                     Spacer(Modifier.weight(1f))
+                                    GlassPill(Icons.Rounded.PhotoCamera, null) { view?.let { v -> screenshot(context, v, source.name, state.player.currentPosition) } }
                                     GlassPill(Icons.Rounded.AspectRatio, if (fit == AspectRatioFrameLayout.RESIZE_MODE_FIT) "Fit" else "Fill") {
+                                        zoom = 1f; pan = Offset.Zero
                                         fit = if (fit == AspectRatioFrameLayout.RESIZE_MODE_FIT) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT
                                     }
                                     GlassPill(Icons.Rounded.ScreenRotation, null) {
@@ -675,6 +775,16 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
     }
     if (more) VideoMoreSheet(
         state, onDismiss = { more = false },
+        subtitleSize = subtitleSize, onSubtitleSize = { subtitleSize = it }, subtitleBox = subtitleBox, onSubtitleBox = { subtitleBox = it },
+        loop = loopA to loopB,
+        onLoop = {
+            val at = state.player.currentPosition
+            when {
+                loopA == null -> loopA = at
+                loopB == null && at > loopA!! -> { loopB = at; state.player.seekTo(loopA!!) }
+                else -> { loopA = null; loopB = null }
+            }
+        },
         onSubtitles = { more = false; loadSubs.launch(arrayOf("*/*")) },
         onEdit = { as_ -> more = false; onEdit(as_) },
         onShare = { more = false; shareSource(context, source) },
@@ -706,7 +816,10 @@ private fun GlassPill(icon: ImageVector, text: String?, onClick: () -> Unit) {
 @kotlin.OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun VideoMoreSheet(
-    state: PlayerState, onDismiss: () -> Unit, onSubtitles: () -> Unit, onEdit: (MediaOutput?) -> Unit, onShare: () -> Unit, onOpenWith: () -> Unit,
+    state: PlayerState, onDismiss: () -> Unit,
+    subtitleSize: Float, onSubtitleSize: (Float) -> Unit, subtitleBox: Boolean, onSubtitleBox: (Boolean) -> Unit,
+    loop: Pair<Long?, Long?>, onLoop: () -> Unit,
+    onSubtitles: () -> Unit, onEdit: (MediaOutput?) -> Unit, onShare: () -> Unit, onOpenWith: () -> Unit,
 ) {
     val audioTracks = remember(state.player.currentTracks) {
         state.player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.flatMap { g -> (0 until g.length).map { i -> g to i } }
@@ -729,6 +842,26 @@ private fun VideoMoreSheet(
                         }, label = { Text(name) })
                     }
                 }
+            }
+            if (state.hasSubtitles) {
+                Text("Subtitles", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+                FlowRow(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0.8f to "Small", 1f to "Normal", 1.3f to "Large", 1.7f to "Huge").forEach { (k, label) ->
+                        FilterChip(subtitleSize == k, onClick = tap { onSubtitleSize(k) }, label = { Text(label) })
+                    }
+                    FilterChip(subtitleBox, onClick = { Haptics.toggle(!subtitleBox); onSubtitleBox(!subtitleBox) }, label = { Text("Dark box behind") })
+                }
+            }
+            Text("Repeat a part", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+            Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                val (a, b) = loop
+                FilledTonalButton(onClick = tap(onLoop)) {
+                    Text(when { a == null -> "Start here (A)"; b == null -> "End here (B)"; else -> "Stop repeating" })
+                }
+                Text(
+                    when { a == null -> "Mark where the part begins"; b == null -> "From ${formatTime(a)}, now mark the end"; else -> "${formatTime(a)} to ${formatTime(b)} plays on repeat" },
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp),
+                )
             }
             Text("Sleep timer", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
             SleepChoices(Modifier.padding(vertical = 8.dp))
@@ -757,3 +890,36 @@ private fun VideoMoreSheet(
     }
 }
 
+
+/** Moves one frame forward or back, exactly rather than to the nearest key frame. */
+@OptIn(UnstableApi::class)
+private fun stepFrame(state: PlayerState, frames: Int) {
+    val exo = state.player as? ExoPlayer ?: return
+    val fps = exo.videoFormat?.frameRate?.takeIf { it > 0 } ?: 30f
+    exo.setSeekParameters(androidx.media3.exoplayer.SeekParameters.EXACT)
+    exo.pause()
+    exo.seekTo((exo.currentPosition + (frames * 1000f / fps).toLong()).coerceAtLeast(0))
+}
+
+/** Saves the frame on screen to Pictures/OAF, named after the video and the moment. */
+@OptIn(UnstableApi::class)
+private fun screenshot(context: android.content.Context, view: PlayerView, videoName: String, at: Long) {
+    val surface = view.videoSurfaceView as? android.view.SurfaceView ?: return
+    if (surface.width <= 0 || surface.height <= 0) return
+    val bitmap = android.graphics.Bitmap.createBitmap(surface.width, surface.height, android.graphics.Bitmap.Config.ARGB_8888)
+    android.view.PixelCopy.request(surface, bitmap, { result ->
+        if (result != android.view.PixelCopy.SUCCESS) { Haptics.reject(); android.widget.Toast.makeText(context, "Couldn't take a picture of this video", android.widget.Toast.LENGTH_SHORT).show(); return@request }
+        val name = videoName.substringBeforeLast('.') + " " + formatTime(at).replace(':', '.') + ".png"
+        val saved = runCatching {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                if (android.os.Build.VERSION.SDK_INT >= 29) put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/OAF")
+            }
+            val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+            context.contentResolver.openOutputStream(uri)!!.use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }.isSuccess
+        if (saved) Haptics.confirm() else Haptics.reject()
+        android.widget.Toast.makeText(context, if (saved) "Saved to Pictures/OAF" else "Couldn't save the picture", android.widget.Toast.LENGTH_SHORT).show()
+    }, android.os.Handler(android.os.Looper.getMainLooper()))
+}

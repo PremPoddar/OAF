@@ -148,10 +148,21 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
 
     // Searching waits for a pause in typing, then looks through this folder and everything below.
     var debounced by remember { mutableStateOf(query) }
-    LaunchedEffect(query) { if (query.isNullOrBlank()) debounced = query else { delay(250); debounced = query } }
+    // Names (quick) or the words inside files (slower, so it waits a little longer).
+    var inside by rememberSaveable { mutableStateOf(false) }
+    var snippets by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(query, inside) { if (query.isNullOrBlank()) debounced = query else { delay(if (inside) 600 else 250); debounced = query } }
 
-    val entries by produceState<List<Entry>?>(null, path, debounced, settings.showHidden, settings.sort, settings.foldersFirst, changes, tick) {
+    val entries by produceState<List<Entry>?>(null, path, debounced, settings.showHidden, settings.sort, settings.foldersFirst, changes, tick, inside) {
         val q = debounced?.trim()?.lowercase()
+        if (inside && !q.isNullOrEmpty()) {
+            value = null
+            val hits = withContext(Dispatchers.IO) { com.prempoddar.oaf.files.ContentSearch.search(dir, q, settings.showHidden) }
+            snippets = hits.associate { it.file.path to it.snippet }
+            value = withContext(Dispatchers.IO) { hits.map { entryOf(it.file) } }
+            return@produceState
+        }
+        snippets = emptyMap()
         value = withContext(Dispatchers.IO) {
             val files = if (!q.isNullOrEmpty()) {
                 dir.walkTopDown().onEnter { settings.showHidden || !it.name.startsWith(".") || it == dir }.maxDepth(12)
@@ -200,6 +211,8 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
             }
             if (query != null && !selecting) {
                 PillTextField(query!!, { query = it }, "Search in ${dir.name.ifEmpty { "storage" }}", Modifier.padding(horizontal = 16.dp, vertical = 4.dp), leading = Icons.Rounded.Search)
+                com.prempoddar.oaf.ui.design.ChoiceChips(listOf(false to "Names", true to "Inside files"), inside, { inside = it }, Modifier.padding(horizontal = 16.dp))
+                if (inside && !query.isNullOrBlank() && list == null) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp))
             }
             if (root != null) Breadcrumbs(dir, root) { go(it) }
 
@@ -208,7 +221,7 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
                 list.isEmpty() -> EmptyState(
                     if (query.isNullOrBlank()) Icons.Rounded.FolderOpen else Icons.Rounded.SearchOff,
                     if (query.isNullOrBlank()) "This folder is empty" else "Nothing matches “$query”",
-                    if (query.isNullOrBlank()) "Paste something here or create a new folder." else "Search looks in this folder and every folder inside it.",
+                    if (query.isNullOrBlank()) "Paste something here or create a new folder." else if (inside) "Looked inside documents, sheets, slides, PDFs and text in this folder and below." else "Search looks in this folder and every folder inside it.",
                     Modifier.weight(1f).fillMaxWidth(),
                 )
                 else -> LazyVerticalGrid(
@@ -227,7 +240,7 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
                         }
                         val long: () -> Unit = { if (isSel) selected.remove(e.file) else selected.add(e.file) }
                         if (settings.grid) FileCell(e, isSel, click, long)
-                        else FileRow(e, isSel, selecting, click, long, extra = if (!query.isNullOrBlank()) e.file.parentFile?.name else null) {
+                        else FileRow(e, isSel, selecting, click, long, extra = snippets[e.file.path] ?: if (!query.isNullOrBlank()) e.file.parentFile?.name else null) {
                             if (e.isDir) Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

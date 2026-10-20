@@ -218,6 +218,7 @@ private suspend fun Player.fillQueue(source: DocSource, video: Boolean) {
 private fun cantEditStream(context: android.content.Context) =
     android.widget.Toast.makeText(context, "This is playing from a link. Save it to the phone first to edit it.", android.widget.Toast.LENGTH_LONG).show()
 
+@OptIn(UnstableApi::class)
 @Composable
 fun MediaViewer(source: DocSource, onBack: () -> Unit) {
     val context = LocalContext.current

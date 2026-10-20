@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Lan
 import com.prempoddar.oaf.ui.design.tap
 import kotlinx.coroutines.launch
@@ -95,6 +96,7 @@ sealed interface HomeTarget {
     data object Storage : HomeTarget
     data object Settings : HomeTarget
     data object Network : HomeTarget
+    data object Batch : HomeTarget
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -226,6 +228,7 @@ fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
                 SettingsGroup("Tools") {
                     SettingsRow("Scan to PDF", "Pages from the camera, straightened and cleaned", Icons.Rounded.DocumentScanner, onClick = scan) { Chevron() }
                     SettingsRow("Pictures to PDF", "Choose photos; each becomes a page", Icons.Rounded.PictureAsPdf, onClick = { picturesToPdf.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Chevron() }
+                    SettingsRow("Batch pictures", "Resize, convert or join many at once", Icons.Rounded.Collections, onClick = { onGo(HomeTarget.Batch) }) { Chevron() }
                     SettingsRow("Network", "Files on a NAS, a computer or a web drive", Icons.Rounded.Lan, onClick = { onGo(HomeTarget.Network) }) { Chevron() }
                     SettingsRow("Apps", "Share installed apps as APK files", Icons.Rounded.Apps, onClick = { onGo(HomeTarget.Apps) }) { Chevron() }
                     if (access) SettingsRow("Storage", "What's using space", Icons.Rounded.PieChart, onClick = { onGo(HomeTarget.Storage) }) { Chevron() }

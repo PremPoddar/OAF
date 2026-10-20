@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
                     HomeTarget.Storage -> nav.navigate("storage")
                     HomeTarget.Settings -> nav.navigate("settings")
                     HomeTarget.Network -> nav.navigate("network")
+                    HomeTarget.Batch -> nav.navigate("batch")
                 }
                 val back: () -> Unit = { nav.popBackStack() }
                 NavHost(
@@ -86,6 +87,7 @@ class MainActivity : ComponentActivity() {
                     composable("category/{c}") { e -> CategoryScreen(Category.valueOf(e.arguments!!.getString("c")!!), onOpen = ::open, onBack = back) }
                     composable("apps") { AppsScreen(onBack = back) }
                     composable("bin") { BinScreen(onBack = back) }
+                    composable("batch") { com.prempoddar.oaf.ui.edit.BatchScreen(onBack = back) }
                     composable("network") { com.prempoddar.oaf.ui.browser.NetworkScreen(onBack = back, onOpenServer = { sv -> nav.navigate("remote/${sv.id}") }) }
                     composable("remote/{id}") { e ->
                         val server = AppGraph.servers.get(e.arguments!!.getString("id")!!)

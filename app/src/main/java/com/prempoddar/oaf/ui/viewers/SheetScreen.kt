@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.viewers
 
+import androidx.compose.material3.Checkbox
+import androidx.compose.material.icons.rounded.FindReplace
 import com.prempoddar.oaf.export.PrintHtml
 import com.prempoddar.oaf.export.Printing
 import android.content.ClipData
@@ -551,6 +553,8 @@ private fun FormatBar(editor: SheetEditor, tick: Int, act: (SheetEditor.() -> Un
                 item("Insert column right") { insertCols(right = true) }()
                 item("Delete column") { deleteCols() }()
                 HorizontalDivider()
+                item("Fill down") { fill(down = true) }()
+                item("Fill right") { fill(down = false) }()
                 item("Clear contents") { clear() }()
                 item(if (editor.sheet.merges.any { m -> m.r1 <= editor.selection.r2 && m.r2 >= editor.selection.r1 && m.c1 <= editor.selection.c2 && m.c2 >= editor.selection.c1 }) "Unmerge cells" else "Merge cells") { toggleMerge() }()
                 item(if (editor.sheet.frozenRows + editor.sheet.frozenCols > 0) "Unfreeze panes" else "Freeze above and left of cursor") { toggleFreeze() }()
@@ -559,8 +563,45 @@ private fun FormatBar(editor: SheetEditor, tick: Int, act: (SheetEditor.() -> Un
                 item("Sort A → Z by this column") { sort(ascending = true) }()
                 item("Sort Z → A by this column") { sort(ascending = false) }()
             }
+            TextButton(onClick = { act { autoSum() } }) { Text("Σ", style = MaterialTheme.typography.titleMedium, color = paper.ink) }
+            IconButton(onClick = { open = "replace" }) { Icon(Icons.Rounded.FindReplace, "Replace") }
         }
     }
+    if (open == "replace") ReplaceDialog(onDismiss = { open = null }) { find, with, matchCase ->
+        var n = 0
+        act { n = replaceAll(find, with, matchCase) }
+        n
+    }
+}
+
+@Composable
+private fun ReplaceDialog(onDismiss: () -> Unit, onReplace: (String, String, Boolean) -> Int) {
+    val context = LocalContext.current
+    var find by remember { mutableStateOf("") }
+    var with by remember { mutableStateOf("") }
+    var matchCase by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Replace in this sheet") },
+        text = {
+            Column {
+                OutlinedTextField(find, { find = it }, label = { Text("Find") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(with, { with = it }, label = { Text("Replace with") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { matchCase = !matchCase }.padding(top = 8.dp)) {
+                    Checkbox(matchCase, { matchCase = it })
+                    Text("Match case")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = find.isNotEmpty(), onClick = {
+                val n = onReplace(find, with, matchCase)
+                Toast.makeText(context, if (n == 0) "Nothing found" else "Replaced in $n cell${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                onDismiss()
+            }) { Text("Replace all") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

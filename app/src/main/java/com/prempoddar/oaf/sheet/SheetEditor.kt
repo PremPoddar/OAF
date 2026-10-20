@@ -121,6 +121,62 @@ class SheetEditor(val wb: Workbook) {
 
     private fun keysIn(area: CellRange) = sheet.cells.keys.filter { area.contains(sheet.row(it), sheet.col(it)) }
 
+    /**
+     * Copies the first row of the selection down through the rest of it ([down]), or the first
+     * column across it, shifting formulas as Excel does.
+     */
+    fun fill(down: Boolean) {
+        // Filling goes into empty cells, so only whole rows or columns are cut down to the data.
+        val area = selection.let { CellRange(it.r1, it.c1, if (wholeCols) minOf(it.r2, maxOf(sheet.maxRow, it.r1)) else it.r2, if (wholeRows) minOf(it.c2, maxOf(sheet.maxCol, it.c1)) else it.c2) }
+        if (if (down) area.r2 == area.r1 else area.c2 == area.c1) return
+        val keys = (area.r1..area.r2).flatMap { r -> (area.c1..area.c2).map { c -> sheet.key(r, c) } }
+        recordCells(keys) {
+            for (r in area.r1..area.r2) for (c in area.c1..area.c2) {
+                val (sr, sc) = if (down) area.r1 to c else r to area.c1
+                if (sr == r && sc == c) continue
+                val src = sheet[sr, sc]
+                val input = src?.input.orEmpty()
+                sheet.set(r, c, if (input.startsWith("=")) Refs.shift(input, r - sr, c - sc) else input, src?.style ?: CellStyle.DEFAULT)
+            }
+        }
+    }
+
+    /**
+     * Adds up numbers: with several cells selected, a SUM goes under each selected column; with one,
+     * the cursor gets a SUM of the run of numbers above it (or to its left).
+     */
+    fun autoSum() {
+        val (r, c) = cursor
+        fun isNum(r: Int, c: Int) = sheet[r, c]?.value is Value.Num
+        if (selection.r2 > selection.r1 && !wholeCols && !wholeRows) {
+            val below = selection.r2 + 1
+            val keys = (selection.c1..selection.c2).map { sheet.key(below, it) }
+            recordCells(keys) {
+                for (col in selection.c1..selection.c2) sheet.set(below, col, "=SUM(${A1.name(selection.r1, col)}:${A1.name(selection.r2, col)})")
+            }
+            return
+        }
+        var top = r - 1
+        while (top >= 0 && isNum(top, c)) top--
+        val formula = if (top < r - 1) "=SUM(${A1.name(top + 1, c)}:${A1.name(r - 1, c)})" else {
+            var left = c - 1
+            while (left >= 0 && isNum(r, left)) left--
+            if (left < c - 1) "=SUM(${A1.name(r, left + 1)}:${A1.name(r, c - 1)})" else "=SUM()"
+        }
+        recordCells(listOf(sheet.key(r, c))) { sheet.set(r, c, formula) }
+    }
+
+    /** Replaces [find] in every cell of this sheet, formulas included. Returns the cells changed. */
+    fun replaceAll(find: String, with: String, matchCase: Boolean = false): Int {
+        if (find.isEmpty()) return 0
+        val keys = sheet.cells.filterValues { it.input.contains(find, ignoreCase = !matchCase) }.keys.toList()
+        if (keys.isEmpty()) return 0
+        recordCells(keys) {
+            keys.forEach { k -> val cell = sheet.cells.getValue(k); sheet.set(sheet.row(k), sheet.col(k), cell.input.replace(find, with, ignoreCase = !matchCase), cell.style) }
+        }
+        return keys.size
+    }
+
     // ------------------------------------------------------------ structure
 
     fun insertRows(below: Boolean) = book {

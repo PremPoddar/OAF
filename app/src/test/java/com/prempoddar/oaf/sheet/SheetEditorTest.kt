@@ -144,4 +144,35 @@ class SheetEditorTest {
         e.toggleFreeze()
         assertThat(e.sheet.frozenRows).isEqualTo(0)
     }
+
+    @Test fun fillDownShiftsFormulas() {
+        val e = editor("A1" to "1", "A2" to "2", "A3" to "3", "B1" to "=A1*2")
+        e.go("B1", "B3"); e.fill(down = true)
+        assertThat(e.i("B3")).isEqualTo("=A3*2")
+        assertThat(e.v("B2")).isEqualTo("4")
+        e.undo()
+        assertThat(e.i("B2")).isNull()
+        e.go("A1", "C1"); e.fill(down = false)
+        assertThat(e.i("C1")).isEqualTo("1")
+    }
+
+    @Test fun autoSumAddsTheNumbersAboveOrUnderASelection() {
+        val e = editor("A1" to "Price", "A2" to "3", "A3" to "4", "B2" to "10", "B3" to "20")
+        e.go("A4"); e.autoSum()
+        assertThat(e.i("A4")).isEqualTo("=SUM(A2:A3)")
+        assertThat(e.v("A4")).isEqualTo("7")
+        e.go("A2", "B3"); e.autoSum()
+        assertThat(e.v("B4")).isEqualTo("30")
+        e.go("C2"); e.autoSum()
+        assertThat(e.v("C2")).isEqualTo("13")
+    }
+
+    @Test fun replaceAllChangesCellsAndUndoes() {
+        val e = editor("A1" to "Apple pie", "A2" to "apple", "A3" to "pear")
+        assertThat(e.replaceAll("apple", "Plum")).isEqualTo(2)
+        assertThat(e.i("A1")).isEqualTo("Plum pie")
+        e.undo()
+        assertThat(e.replaceAll("apple", "x", matchCase = true)).isEqualTo(1)
+        assertThat(e.i("A1")).isEqualTo("Apple pie")
+    }
 }

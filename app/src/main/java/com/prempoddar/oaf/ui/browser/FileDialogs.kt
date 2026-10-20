@@ -218,7 +218,7 @@ fun DetailsSheet(file: File, onDismiss: () -> Unit) {
                 "Modified" to DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(file.lastModified())),
                 "Hidden" to if (file.name.startsWith(".")) "Yes" else "No",
                 "Permissions" to listOf(if (file.canRead()) "read" else null, if (file.canWrite()) "write" else null).filterNotNull().joinToString(", ").ifEmpty { "none" },
-            )
+            ) + LinuxInfo.of(file)
         }
     }
     val hashes = remember { mutableStateMapOf<String, String>() }
@@ -249,5 +249,49 @@ fun DetailsSheet(file: File, onDismiss: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/**
+ * What Linux knows about a file beyond its name and size: the full permission bits, its owner
+ * and group, where a symbolic link points, and its SELinux label. Shown as Material Files does.
+ */
+object LinuxInfo {
+    fun of(file: File): List<Pair<String, String>> = runCatching {
+        val st = android.system.Os.lstat(file.path)
+        val out = ArrayList<Pair<String, String>>()
+        if (android.system.OsConstants.S_ISLNK(st.st_mode)) {
+            out += "Links to" to runCatching { android.system.Os.readlink(file.path) }.getOrDefault("?")
+        }
+        out += "Mode" to "${modeString(st.st_mode)} (${"%04o".format(st.st_mode and 0xFFF)})"
+        out += "Owner" to "${nameOf(st.st_uid)} (${st.st_uid}) · group ${nameOf(st.st_gid)} (${st.st_gid})"
+        out += "Inode" to "${st.st_ino} · ${st.st_nlink} link${if (st.st_nlink == 1L) "" else "s"}"
+        runCatching { String(android.system.Os.getxattr(file.path, "security.selinux")).trimEnd('\u0000') }.getOrNull()
+            ?.takeIf { it.isNotBlank() }?.let { out += "SELinux" to it }
+        out
+    }.getOrDefault(emptyList())
+
+    /** "drwxr-x---" from the mode bits. */
+    fun modeString(mode: Int): String {
+        val type = when (mode and 0xF000) { 0x4000 -> 'd'; 0xA000 -> 'l'; 0x2000 -> 'c'; 0x6000 -> 'b'; 0x1000 -> 'p'; 0xC000 -> 's'; else -> '-' }
+        val bits = "rwxrwxrwx"
+        val sb = StringBuilder().append(type)
+        for (i in 0 until 9) sb.append(if (mode and (1 shl (8 - i)) != 0) bits[i] else '-')
+        // setuid, setgid and sticky show in the execute places, as ls does.
+        fun mark(at: Int, flag: Int, on: Char, off: Char) { if (mode and flag != 0) sb.setCharAt(at, if (sb[at] == 'x') on else off) }
+        mark(3, 0x800, 's', 'S'); mark(6, 0x400, 's', 'S'); mark(9, 0x200, 't', 'T')
+        return sb.toString()
+    }
+
+    /** Android's names for app and system ids: u0_a123 for apps, else the well-known ones. */
+    private fun nameOf(id: Int): String = when {
+        id == 0 -> "root"
+        id == 1000 -> "system"
+        id == 1023 -> "media_rw"
+        id == 1028 -> "sdcard_r"
+        id == 1015 -> "sdcard_rw"
+        id == 9997 -> "everybody"
+        id % 100_000 >= 10_000 -> "u${id / 100_000}_a${id % 100_000 - 10_000}"
+        else -> id.toString()
     }
 }

@@ -85,6 +85,13 @@ private fun WebDocView(source: DocSource, page: String, label: String, onBack: (
             settings.builtInZoomControls = true
             settings.displayZoomControls = false
             setBackgroundColor(paper.page.toArgb())
+            // The pages' own console messages go to the system log, to see what went wrong in one.
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                    android.util.Log.w("OafWebEngine", "${m.messageLevel()} ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                    return true
+                }
+            }
             addJavascriptInterface(
                 Bridge(
                     read = {
@@ -101,7 +108,8 @@ private fun WebDocView(source: DocSource, page: String, label: String, onBack: (
     }
     DisposableEffect(web) { onDispose { web.destroy() } }
     ViewerScaffold(title = source.name, subtitle = "Opened with $label", chrome = chrome, autoHide = false, onBack = onBack) {
-        AndroidView({ web }, Modifier.fillMaxSize().padding(top = top + 56.dp))
+        // A new theme makes a new web view; key on it so that one is shown, not the first one forever.
+        androidx.compose.runtime.key(web) { AndroidView({ web }, Modifier.fillMaxSize().padding(top = top + 56.dp)) }
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             when {
                 error != null -> Text("$label couldn't open this file: $error", color = paper.muted)

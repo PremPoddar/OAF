@@ -18,11 +18,25 @@ load().then(function (bytes) {
   }).then(function () {
     var pages = box.querySelectorAll('section.docx');
     pages.forEach(function (p) { p.classList.add('paper'); });
-    // Pages are as wide as on paper; shrink them to the screen, keeping their layout.
-    var widest = 0;
-    pages.forEach(function (p) { widest = Math.max(widest, p.offsetWidth); });
-    if (widest > 0) box.style.zoom = Math.min(1, (window.innerWidth - 16) / widest);
-    done();
+    // Pages are as wide as on paper: shrink them whole to the screen, keeping their layout.
+    requestAnimationFrame(function () {
+      var wrapper = box.querySelector('.docx-wrapper') || box;
+      var widest = 0;
+      pages.forEach(function (p) { widest = Math.max(widest, p.getBoundingClientRect().width); });
+      // The screen, not the page: a page wider than the screen widens the page's own measure too.
+      var screenWidth = Math.min(window.screen.width, window.visualViewport ? window.visualViewport.width : window.screen.width);
+      var scale = widest > 0 ? Math.min(1, (screenWidth - 8) / (widest + 16)) : 1;
+      console.log('docx fit: pages=' + pages.length + ' widest=' + widest + ' screen=' + screenWidth + ' scale=' + scale);
+      if (scale < 1) {
+        // Shrunk whole, keeping the layout; the box takes the shrunk height so scrolling ends at the last page.
+        wrapper.style.transformOrigin = '0 0';
+        wrapper.style.transform = 'scale(' + scale + ')';
+        wrapper.style.width = (widest + 16) + 'px';
+        box.style.height = (wrapper.scrollHeight * scale) + 'px';
+        box.style.overflow = 'hidden';
+      }
+      done();
+    });
   });
 }).catch(done);
 </script></body></html>

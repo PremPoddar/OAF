@@ -97,6 +97,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Checkbox
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -359,6 +361,8 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
     var contents by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var newTable by remember { mutableStateOf(false) }
+    var replacing by remember { mutableStateOf(false) }
     // The paragraph being typed in, its selection, and formatting chosen for the next typed text.
     var focused by remember { mutableStateOf<Long?>(null) }
     var selection by remember { mutableStateOf(TextRange.Zero) }
@@ -462,6 +466,18 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
                 IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "More") }
                 DropdownMenu(menu, onDismissRequest = { menu = false }) {
                     if (!editing) DropdownMenuItem(text = { Text("Find…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; finding = true; chrome.show() })
+                    if (editing) {
+                        DropdownMenuItem(text = { Text("Replace…") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; replacing = true })
+                        val here = focused
+                        DropdownMenuItem(text = { Text("Insert table…") }, enabled = here != null, onClick = { menu = false; newTable = true })
+                        if (here != null && editor.tableOf(here) != null) {
+                            DropdownMenuItem(text = { Text("Add row above") }, onClick = { menu = false; editor.addRow(here, below = false)?.let { caretTarget = it to 0 }; tick = editor.version })
+                            DropdownMenuItem(text = { Text("Add row below") }, onClick = { menu = false; editor.addRow(here, below = true)?.let { caretTarget = it to 0 }; tick = editor.version })
+                            DropdownMenuItem(text = { Text("Delete row") }, onClick = { menu = false; focused = null; act { deleteRow(here) } })
+                            DropdownMenuItem(text = { Text("Delete table") }, onClick = { menu = false; focused = null; act { deleteTable(here) } })
+                        }
+                        HorizontalDivider()
+                    }
                     DropdownMenuItem(text = { Text("Contents") }, onClick = { menu = false; contents = true })
                     DropdownMenuItem(
                         text = { Text(if (pageView) "Reading view" else "Page view") },
@@ -561,6 +577,65 @@ private fun DocBodyScreen(source: DocSource, loaded: LoadedDoc, onBack: () -> Un
                 }
             },
             confirmButton = { TextButton(onClick = { contents = false }) { Text("Close") } },
+        )
+    }
+
+    if (newTable) {
+        var rows by remember { mutableStateOf("3") }
+        var cols by remember { mutableStateOf("3") }
+        val r = rows.toIntOrNull()?.takeIf { it in 1..100 }
+        val c = cols.toIntOrNull()?.takeIf { it in 1..20 }
+        AlertDialog(
+            onDismissRequest = { newTable = false },
+            title = { Text("Insert table") },
+            text = {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(rows, { rows = it.filter(Char::isDigit).take(3) }, label = { Text("Rows") }, singleLine = true, isError = r == null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                    OutlinedTextField(cols, { cols = it.filter(Char::isDigit).take(2) }, label = { Text("Columns") }, singleLine = true, isError = c == null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = r != null && c != null, onClick = {
+                    newTable = false
+                    focused?.let { id -> editor.insertTable(id, r!!, c!!)?.let { caretTarget = it to 0 }; tick = editor.version }
+                }) { Text("Insert") }
+            },
+            dismissButton = { TextButton(onClick = { newTable = false }) { Text("Cancel") } },
+        )
+    }
+
+    if (replacing) {
+        var find by remember { mutableStateOf(query) }
+        var with by remember { mutableStateOf("") }
+        var matchCase by remember { mutableStateOf(false) }
+        val count = remember(body, find, matchCase) {
+            if (find.isEmpty()) 0 else body.paragraphs.sumOf { p -> Regex(Regex.escape(find), if (matchCase) emptySet() else setOf(RegexOption.IGNORE_CASE)).findAll(p.text).count() }
+        }
+        AlertDialog(
+            onDismissRequest = { replacing = false },
+            title = { Text("Replace") },
+            text = {
+                Column {
+                    OutlinedTextField(find, { find = it }, label = { Text("Find") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(with, { with = it }, label = { Text("Replace with") }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { matchCase = !matchCase }.padding(top = 8.dp)) {
+                        Checkbox(matchCase, { matchCase = it })
+                        Text("Match case", modifier = Modifier.weight(1f))
+                        Text(if (find.isEmpty()) "" else "$count found", color = paper.muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = count > 0, onClick = {
+                    replacing = false
+                    var n = 0
+                    act { n = replaceAll(find, with, matchCase) }
+                    Toast.makeText(context, "Replaced $n", Toast.LENGTH_SHORT).show()
+                }) { Text("Replace all") }
+            },
+            dismissButton = { TextButton(onClick = { replacing = false }) { Text("Cancel") } },
         )
     }
 

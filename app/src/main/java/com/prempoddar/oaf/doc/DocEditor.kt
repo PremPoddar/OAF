@@ -121,4 +121,81 @@ class DocEditor(start: DocBody) {
     fun indent(id: Long, delta: Int) = setParagraph(id) { props ->
         if (props.numId == null || props.numId == "0") props else props.copy(level = (props.level + delta).coerceIn(0, 8))
     }
+    private fun emptyPara() = Para(newId(), listOf(Run("")))
+
+    /** The table holding paragraph [id], and the row it's in. */
+    fun tableOf(id: Long): Pair<Block.T, Int>? {
+        for (b in body.blocks) if (b is Block.T) {
+            val r = b.rows.indexOfFirst { row -> row.any { c -> c.paras.any { it.id == id } } }
+            if (r >= 0) return b to r
+        }
+        return null
+    }
+
+    /**
+     * Puts an empty [rows] by [cols] table after paragraph [id] (or after the table [id] is in).
+     * A paragraph follows it when it would otherwise end the document, so there's somewhere to type
+     * after it. Returns the first cell's paragraph, for the caret.
+     */
+    fun insertTable(id: Long, rows: Int, cols: Int): Long? {
+        val at = body.blocks.indexOfFirst { b -> b is Block.P && b.para.id == id || b is Block.T && b.rows.flatten().any { c -> c.paras.any { it.id == id } } }
+        if (at < 0 || rows < 1 || cols < 1) return null
+        val table = Block.T(null, List(rows) { List(cols) { Cell(null, listOf(emptyPara())) } }, emptyList())
+        val after = if (at == body.blocks.lastIndex) listOf(table, Block.P(emptyPara())) else listOf(table)
+        commit(DocBody(body.blocks.take(at + 1) + after + body.blocks.drop(at + 1)))
+        return table.rows[0][0].paras[0].id
+    }
+
+    /** Adds an empty row above or below the one paragraph [id] is in, as many cells wide. */
+    fun addRow(id: Long, below: Boolean): Long? {
+        val (t, r) = tableOf(id) ?: return null
+        val row = List(t.rows[r].size) { Cell(null, listOf(emptyPara())) }
+        val at = if (below) r + 1 else r
+        commit(swap(t, t.copy(rows = t.rows.take(at) + listOf(row) + t.rows.drop(at))))
+        return row[0].paras[0].id
+    }
+
+    /** Removes the row paragraph [id] is in; the last row takes the whole table with it. */
+    fun deleteRow(id: Long) {
+        val (t, r) = tableOf(id) ?: return
+        if (t.rows.size == 1) deleteTable(id) else commit(swap(t, t.copy(rows = t.rows.filterIndexed { i, _ -> i != r })))
+    }
+
+    fun deleteTable(id: Long) {
+        val (t, _) = tableOf(id) ?: return
+        val blocks = body.blocks.filter { it !== t }
+        commit(DocBody(blocks.ifEmpty { listOf(Block.P(emptyPara())) }))
+    }
+
+    private fun swap(old: Block.T, new: Block.T) = DocBody(body.blocks.map { if (it === old) new else it })
+
+    /**
+     * Replaces every [find] with [with] in one undo step, keeping each match's formatting. Pictures
+     * and other objects are never part of a match. Returns how many were replaced.
+     */
+    fun replaceAll(find: String, with: String, matchCase: Boolean = false): Int {
+        if (find.isEmpty()) return 0
+        val pattern = Regex(Regex.escape(find), if (matchCase) emptySet() else setOf(RegexOption.IGNORE_CASE))
+        var count = 0
+        val changed = HashMap<Long, Para>()
+        for (p in body.paragraphs) {
+            val hits = pattern.findAll(p.text).filter { m -> Para.OBJ !in m.value }.toList()
+            if (hits.isEmpty()) continue
+            var q = p
+            for (m in hits.asReversed()) {
+                val style = q.styleAt(m.range.first + 1)
+                val src = q.runs.let { runs -> var pos = 0; runs.firstOrNull { r -> val hit = !r.isObject && m.range.first in pos until pos + r.text.length; pos += r.text.length; hit } }
+                q = q.delete(m.range.first, m.range.last + 1)
+                q = q.insert(m.range.first, Run(with, style, src?.rPr, link = src?.link, linkTarget = src?.linkTarget, charStyle = src?.charStyle))
+                if (with.isEmpty()) q = q.copy(dirty = true)
+            }
+            changed[p.id] = q
+            count += hits.size
+        }
+        if (count == 0) return 0
+        var next = body
+        changed.forEach { (id, para) -> next = next.replace(id, listOf(para)) }
+        commit(next)
+        return count
+    }
 }

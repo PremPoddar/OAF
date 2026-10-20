@@ -408,7 +408,7 @@ object Docx {
 
         // Tables made from other formats get their XML here.
         val tables = IdentityHashMap<Block.T, Block.T>()
-        val blocks = body.blocks.map { b -> if (b is Block.T && b.el == null) newTable(dom, b).also { tables[b] = it } else b }
+        val blocks = body.blocks.map { b -> if (b is Block.T && b.el == null) newTable(dom, b).also { tables[b] = it } else if (b is Block.T) syncRows(b) else b }
 
         // 1. Paragraphs no longer in the document leave it.
         val inModel = HashSet<Element>()
@@ -630,6 +630,38 @@ object Docx {
     }
 
     private val BAD_XML = Regex("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\uFFFE\\uFFFF]")
+
+    /**
+     * Makes a table's rows in the XML match the model's: rows added while editing get a copy of a
+     * neighbouring row (its cell widths and shading, none of its text), and deleted rows go.
+     */
+    private fun syncRows(t: Block.T): Block.T {
+        val tbl = t.el!!
+        fun trOf(c: Cell): Element? { var n = c.el?.parentNode; while (n is Element && n.localName != "tr") n = n.parentNode; return n as? Element }
+        val known = t.rows.map { row -> row.firstNotNullOfOrNull(::trOf) }
+        val oldRows = (0 until tbl.childNodes.length).map { tbl.childNodes.item(it) }.filterIsInstance<Element>().filter { it.localName == "tr" }
+        if (known.none { it == null } && oldRows == known) return t
+        val rows = t.rows.mapIndexed { i, row ->
+            if (known[i] != null) return@mapIndexed row
+            val like = (i - 1 downTo 0).firstNotNullOfOrNull { known[it] } ?: known.drop(i + 1).firstOrNull { it != null } ?: oldRows.firstOrNull()
+            val tr = like?.cloneNode(true) as? Element ?: tbl.ownerDocument.createElementNS(W, "w:tr")
+            val tcs = (0 until tr.childNodes.length).map { tr.childNodes.item(it) }.filterIsInstance<Element>().filter { it.localName == "tc" }
+            tcs.forEach { tc ->
+                (0 until tc.childNodes.length).map { tc.childNodes.item(it) }.filterIsInstance<Element>().filter { it.localName != "tcPr" }.forEach { tc.removeChild(it) }
+                tc.kid("tcPr")?.kid("vMerge")?.let { it.parentNode.removeChild(it) }
+            }
+            row.mapIndexed { ci, c ->
+                val tc = tcs.getOrNull(ci) ?: tbl.ownerDocument.createElementNS(W, "w:tc").also { tr.appendChild(it) }
+                Cell(tc, c.paras)
+            }
+        }
+        val order = rows.map { row -> trOf(row.first())!! }
+        oldRows.filter { it !in order }.forEach { tbl.removeChild(it) }
+        // In the model's order, where the rows were (tables can have elements after their rows).
+        val anchor = oldRows.lastOrNull { it in order }?.nextSibling
+        order.forEach { tbl.insertBefore(it, anchor) }
+        return t.copy(rows = rows)
+    }
 
     /** XML for a table that came from another format: simple borders, columns from [Block.T.widths]. */
     private fun newTable(dom: Document, t: Block.T): Block.T {

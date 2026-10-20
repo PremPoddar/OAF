@@ -161,4 +161,36 @@ class DocxTest {
         assertThat(again.numbering.labels(again.body.paragraphs, again.styles)).containsExactly(again.body.paragraphs[3].id, "1.")
         assertThat(files.getValue("[Content_Types].xml")).contains("numbering")
     }
+
+    @Test fun rowsAddedAndDeletedInATableFromTheFile() {
+        val doc = Docx.read(parts())
+        val e = DocEditor(doc.body)
+        val a = doc.body.paragraphs.first { it.text == "A" }
+        val newRow = e.addRow(a.id, below = true)!!
+        e.change(newRow, "C")
+        val (_, files) = save(doc, e.body)
+        val xml = files.getValue("word/document.xml")
+        assertThat(Regex("<w:tr>").findAll(xml).count()).isEqualTo(2)
+        val doc2 = reread(files)
+        val table = doc2.body.blocks.filterIsInstance<Block.T>().single()
+        assertThat(table.rows.map { row -> row.map { c -> c.paras.joinToString { it.text } } }).containsExactly(listOf("A", "B"), listOf("C", "")).inOrder()
+
+        val e2 = DocEditor(doc2.body)
+        e2.deleteRow(doc2.body.paragraphs.first { it.text == "A" }.id)
+        val (_, files2) = save(doc2, e2.body)
+        assertThat(Regex("<w:tr>").findAll(files2.getValue("word/document.xml")).count()).isEqualTo(1)
+        val rows = reread(files2).body.blocks.filterIsInstance<Block.T>().single().rows
+        assertThat(rows.map { row -> row.map { c -> c.paras.joinToString { it.text } } }).containsExactly(listOf("C", ""))
+    }
+
+    @Test fun aNewTableIsWritten() {
+        val doc = Docx.read(parts())
+        val e = DocEditor(doc.body)
+        val cell = e.insertTable(doc.body.paragraphs.first { it.text == "Report" }.id, 1, 2)!!
+        e.change(cell, "New cell")
+        val (_, files) = save(doc, e.body)
+        val tables = reread(files).body.blocks.filterIsInstance<Block.T>()
+        assertThat(tables).hasSize(2)
+        assertThat(tables[0].rows[0][0].paras[0].text).isEqualTo("New cell")
+    }
 }

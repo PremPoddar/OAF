@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -39,6 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.prempoddar.oaf.AppGraph
 import com.prempoddar.oaf.files.Bin
+import com.prempoddar.oaf.files.CleanUp
+import java.io.File
 import com.prempoddar.oaf.ui.LocalPaper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -122,5 +125,89 @@ fun StorageScreen(onBack: () -> Unit) {
                 }
             }
         }
+        CleanUpSection()
+    }
+}
+
+/** Suggestions for freeing space: found on request, each one sent to the bin with a tap. */
+@Composable
+private fun CleanUpSection() {
+    val paper = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var scanning by remember { mutableStateOf(false) }
+    var report by remember { mutableStateOf<CleanUp.Report?>(null) }
+    var gone by remember { mutableStateOf(setOf<String>()) }
+    fun toBin(f: File) = scope.launch {
+        withContext(Dispatchers.IO) { runCatching { AppGraph.bin.delete(f) } }
+        gone = gone + f.path
+    }
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Text("Free up space", style = MaterialTheme.typography.titleLarge)
+        if (!Storage.hasAllFilesAccess()) {
+            Text("OAF needs access to all files to look for things to clear.", color = paper.muted, style = MaterialTheme.typography.bodyMedium)
+            return@Column
+        }
+        val r = report
+        if (r == null) {
+            Text("Looks for big files, copies of the same file, old app installers and empty folders.", color = paper.muted, style = MaterialTheme.typography.bodyMedium)
+            if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 12.dp))
+            else Button(onClick = {
+                scanning = true
+                scope.launch {
+                    report = withContext(Dispatchers.IO) { CleanUp.scan(android.os.Environment.getExternalStorageDirectory()) }
+                    scanning = false
+                }
+            }, Modifier.padding(top = 12.dp)) { Text("Look for things to clear") }
+            return@Column
+        }
+        if (r.isEmpty) { Text("Nothing to suggest. Your storage is tidy.", color = paper.muted); return@Column }
+
+        @Composable fun Heading(title: String, note: String) {
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            Text(note, style = MaterialTheme.typography.bodySmall, color = paper.muted)
+        }
+        @Composable fun FileLine(f: File, detail: String) {
+            if (f.path in gone) return
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(f.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(detail, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                TextButton(onClick = { toBin(f) }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            }
+        }
+        fun where(f: File) = f.parentFile?.name ?: ""
+
+        if (r.large.isNotEmpty()) {
+            Heading("Big files", "Files over ${humanSize(CleanUp.LARGE_BYTES)}, biggest first.")
+            r.large.forEach { FileLine(it, "${humanSize(it.length())} · in ${where(it)}") }
+        }
+        val dupes = r.duplicates.map { d -> d.copy(files = d.files.filter { it.path !in gone }) }.filter { it.files.size > 1 }
+        if (dupes.isNotEmpty()) {
+            Heading("Copies of the same file", "${humanSize(dupes.sumOf { it.spare })} could be freed. The oldest copy of each is kept.")
+            dupes.take(30).forEach { d ->
+                Text("${d.files.size} copies of ${d.files[0].name} · ${humanSize(d.size)} each", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                Text("Keeping the one in ${where(d.files[0])}", style = MaterialTheme.typography.bodySmall, color = paper.muted)
+                d.files.drop(1).forEach { FileLine(it, "Copy in ${it.parent}") }
+            }
+        }
+        if (r.installers.isNotEmpty()) {
+            Heading("Old app installers", "Installer files more than 30 days old. Apps already installed don't need them.")
+            r.installers.forEach { FileLine(it, "${humanSize(it.length())} · in ${where(it)}") }
+        }
+        val empties = r.emptyFolders.filter { it.path !in gone }
+        if (empties.isNotEmpty()) {
+            Heading("Empty folders", "${empties.size} folder${if (empties.size == 1) "" else "s"} with nothing in them.")
+            empties.take(10).forEach { Text(it.path.removePrefix(android.os.Environment.getExternalStorageDirectory().path), style = MaterialTheme.typography.bodySmall, color = paper.muted) }
+            if (empties.size > 10) Text("and ${empties.size - 10} more", style = MaterialTheme.typography.bodySmall, color = paper.muted)
+            TextButton(onClick = {
+                scope.launch {
+                    // Nothing is inside them, so there's nothing for the bin to keep.
+                    val removed = withContext(Dispatchers.IO) { empties.filter { it.delete() }.map { it.path } }
+                    gone = gone + removed
+                }
+            }) { Text("Remove empty folders") }
+        }
+        TextButton(onClick = { report = null; gone = emptySet() }, Modifier.padding(top = 8.dp)) { Text("Look again") }
     }
 }

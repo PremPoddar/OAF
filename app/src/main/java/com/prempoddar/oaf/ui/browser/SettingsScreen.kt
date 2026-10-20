@@ -39,7 +39,7 @@ fun SettingsScreen(onBack: () -> Unit, onAppearance: () -> Unit, onAbout: () -> 
         LazyColumn(contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + 32.dp)) {
             item {
                 SettingsGroup("Look") {
-                    SettingsRow("Look & feel", "Theme, colours, font, shapes and haptics", Icons.Rounded.Palette, onClick = onAppearance) { Chevron() }
+                    SettingsRow("Appearance", "Theme, colours, font, shapes and haptics", Icons.Rounded.Palette, onClick = onAppearance) { Chevron() }
                     SwitchRow("Grid view", "Big previews instead of a list", Icons.Rounded.GridView, s.grid) { v -> update { it.copy(grid = v) } }
                 }
             }

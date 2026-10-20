@@ -65,6 +65,12 @@ class ScreensTest {
     @Test fun appsDark() = shoot("apps-dark", dark) { AppsScreen {} }
     @Test fun settingsDark() = shoot("settings-dark", dark) { SettingsScreen({}, {}, {}, {}, {}) }
 
+    @Config(qualifiers = "w411dp-h1900dp-xxhdpi")
+    @Test fun appearanceLight() = shoot("appearance-light", light) { com.prempoddar.oaf.ui.design.AppearanceScreen(light, OAF_BRAND, {}, {}) }
+
+    @Config(qualifiers = "w411dp-h1900dp-xxhdpi")
+    @Test fun appearanceDark() = shoot("appearance-dark", dark.copy(dusk = true)) { com.prempoddar.oaf.ui.design.AppearanceScreen(dark.copy(dusk = true), OAF_BRAND, {}, {}) }
+
     private fun samplePicture(): File {
         val b = Bitmap.createBitmap(1200, 800, Bitmap.Config.ARGB_8888)
         android.graphics.Canvas(b).apply {

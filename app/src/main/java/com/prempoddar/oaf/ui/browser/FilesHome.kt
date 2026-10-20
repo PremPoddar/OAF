@@ -1,5 +1,8 @@
 package com.prempoddar.oaf.ui.browser
 
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material.icons.rounded.DocumentScanner
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -94,6 +97,26 @@ sealed interface HomeTarget {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
+    val scanContext = androidx.compose.ui.platform.LocalContext.current
+    val scan = com.prempoddar.oaf.scan.Scanner.rememberScan { uri ->
+        if (uri == null) android.widget.Toast.makeText(scanContext, "The scanner isn't available on this phone", android.widget.Toast.LENGTH_LONG).show()
+        else onOpen(DocSource.fromUri(scanContext, uri, "application/pdf"))
+    }
+    val pdfScope = androidx.compose.runtime.rememberCoroutineScope()
+    val picturesToPdf = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia(100)) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        pdfScope.launch {
+            val saved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val tmp = java.io.File(scanContext.cacheDir, "pictures.pdf")
+                    com.prempoddar.oaf.pdf.ImagesToPdf.make(scanContext, uris, tmp)
+                    com.prempoddar.oaf.scan.Scanner.keep(scanContext, android.net.Uri.fromFile(tmp), "Pictures").also { tmp.delete() }
+                }.getOrNull()
+            }
+            if (saved == null) android.widget.Toast.makeText(scanContext, "Couldn't make the PDF", android.widget.Toast.LENGTH_LONG).show()
+            else onOpen(DocSource.fromUri(scanContext, saved, "application/pdf"))
+        }
+    }
     val context = LocalContext.current
     val settings by AppGraph.prefs.settings.collectAsStateWithLifecycle(OafSettings())
     var access by remember { mutableStateOf(Storage.hasAllFilesAccess()) }
@@ -198,6 +221,8 @@ fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
             }
             item {
                 SettingsGroup("Tools") {
+                    SettingsRow("Scan to PDF", "Pages from the camera, straightened and cleaned", Icons.Rounded.DocumentScanner, onClick = scan) { Chevron() }
+                    SettingsRow("Pictures to PDF", "Choose photos; each becomes a page", Icons.Rounded.PictureAsPdf, onClick = { picturesToPdf.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Chevron() }
                     SettingsRow("Apps", "Share installed apps as APK files", Icons.Rounded.Apps, onClick = { onGo(HomeTarget.Apps) }) { Chevron() }
                     if (access) SettingsRow("Storage", "What's using space", Icons.Rounded.PieChart, onClick = { onGo(HomeTarget.Storage) }) { Chevron() }
                     SettingsRow("Bin", "Deleted files stay for 30 days", Icons.Rounded.DeleteOutline, onClick = { onGo(HomeTarget.Bin) }) { Chevron() }

@@ -69,6 +69,7 @@ android {
 
 dependencies {
     implementation(libs.material.color.utilities)
+    implementation(libs.mlkit.document.scanner)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)

@@ -260,6 +260,27 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
     var query by remember { mutableStateOf("") }
     var outlineOpen by remember { mutableStateOf(false) }
     var goTo by remember { mutableStateOf(false) }
+    var watermarking by remember { mutableStateOf(false) }
+    // Split: one PDF per page, into a folder the person picks.
+    val splitInto = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        tree ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val count = runCatching {
+                val dir = File(context.cacheDir, "split").apply { deleteRecursively(); mkdirs() }
+                val files = state.work { PdfPages.split(it.doc, dir, source.name.removeSuffix(".pdf")) }
+                withContext(Dispatchers.IO) {
+                    val parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree))
+                    files.forEach { f ->
+                        val doc = android.provider.DocumentsContract.createDocument(context.contentResolver, parent, "application/pdf", f.name)!!
+                        context.contentResolver.openOutputStream(doc)!!.use { out -> f.inputStream().use { it.copyTo(out) } }
+                    }
+                    dir.deleteRecursively()
+                }
+                files.size
+            }.getOrNull()
+            Toast.makeText(context, if (count != null) "Saved $count single-page PDFs" else "Couldn't split the PDF", Toast.LENGTH_SHORT).show()
+        }
+    }
     var confirmLeave by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<Pending?>(null) }
@@ -452,6 +473,15 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
                     DropdownMenuItem(text = { Text("Fit width") }, onClick = { menu = false; zoom = 1f })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Save a copy…") }, onClick = { menu = false; saveCopy.launch(source.name) })
+                    if (perms.modify) DropdownMenuItem(text = { Text("Make smaller") }, onClick = {
+                        menu = false
+                        state.change("make it smaller") { doc ->
+                            val n = PdfPages.compressImages(doc)
+                            scope.launch { Toast.makeText(context, if (n == 0) "No large pictures to shrink" else "Shrank $n picture${if (n == 1) "" else "s"} — save to keep it", Toast.LENGTH_LONG).show() }
+                        }
+                    })
+                    if (perms.modify) DropdownMenuItem(text = { Text("Add a watermark…") }, onClick = { menu = false; watermarking = true })
+                    DropdownMenuItem(text = { Text("Split into single pages…") }, onClick = { menu = false; splitInto.launch(null) })
                     if (perms.print) DropdownMenuItem(text = { Text("Print…") }, onClick = { menu = false; print(context, source.name, state) })
                     if (state.fields.isNotEmpty() && perms.modify) DropdownMenuItem(text = { Text("Flatten form") }, onClick = { menu = false; state.change("flatten the form") { PdfForms.flatten(it) } })
                     DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; shareSource(context, source) })
@@ -604,6 +634,16 @@ private fun PdfBody(source: DocSource, session: PdfSession, onBack: () -> Unit) 
         )
     }
 
+    if (watermarking) {
+        var mark by remember { mutableStateOf("CONFIDENTIAL") }
+        AlertDialog(
+            onDismissRequest = { watermarking = false },
+            title = { Text("Watermark") },
+            text = { OutlinedTextField(mark, { mark = it.take(40) }, singleLine = true, label = { Text("Text across every page") }) },
+            confirmButton = { TextButton(enabled = mark.isNotBlank(), onClick = { watermarking = false; val t = mark.trim(); state.change("add the watermark") { PdfPages.watermark(it, t) } }) { Text("Add") } },
+            dismissButton = { TextButton(onClick = { watermarking = false }) { Text("Cancel") } },
+        )
+    }
     if (goTo) TextDialog("Go to page", "", multiline = false, number = true, onDismiss = { goTo = false }) { text ->
         goTo = false
         text.trim().toIntOrNull()?.let { scrollTo(it - 1) }

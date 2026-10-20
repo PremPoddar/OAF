@@ -153,6 +153,62 @@ object PdfPages {
         }
     }
 
+    /** One PDF per page in [dir], named "[base] - page N.pdf"; returns them in order. */
+    fun split(doc: PDDocument, dir: File, base: String): List<File> = (0 until doc.numberOfPages).map { i ->
+        File(dir, "$base - page ${i + 1}.pdf").also { extract(doc, listOf(i), it) }
+    }
+
+    /**
+     * Makes the file smaller by shrinking pictures larger than [maxSide] pixels and storing them as
+     * JPEG at [quality]; text and drawings are untouched. Returns how many pictures changed.
+     */
+    fun compressImages(doc: PDDocument, maxSide: Int = 1600, quality: Float = 0.7f): Int {
+        var changed = 0
+        doc.pages.forEach { page ->
+            val res = page.resources ?: return@forEach
+            res.xObjectNames.toList().forEach { name ->
+                val image = res.getXObject(name) as? com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject ?: return@forEach
+                // Small pictures and ones with see-through parts (which JPEG would lose) stay as they are.
+                if (image.width * image.height < 300 * 300 || image.cosObject.containsKey(com.tom_roush.pdfbox.cos.COSName.SMASK)) return@forEach
+                val bitmap = runCatching { image.image }.getOrNull() ?: return@forEach
+                val scale = minOf(1f, maxSide.toFloat() / maxOf(bitmap.width, bitmap.height))
+                val small = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt().coerceAtLeast(1), (bitmap.height * scale).toInt().coerceAtLeast(1), true) else bitmap
+                val jpeg = com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory.createFromImage(doc, small, quality)
+                // Only keep it if it really is smaller.
+                if (encodedSize(jpeg.cosObject) < encodedSize(image.cosObject)) { res.put(name, jpeg); changed++ }
+            }
+        }
+        return changed
+    }
+
+    private fun encodedSize(s: com.tom_roush.pdfbox.cos.COSStream): Long =
+        runCatching { s.createRawInputStream().use { input -> var n = 0L; val b = ByteArray(65536); while (true) { val r = input.read(b); if (r < 0) break; n += r }; n } }.getOrDefault(Long.MAX_VALUE)
+
+    /** [text] across every page, faint and diagonal, under whatever is drawn on top later. */
+    fun watermark(doc: PDDocument, text: String, opacity: Float = 0.15f) {
+        val font = com.tom_roush.pdfbox.pdmodel.font.PDType1Font.HELVETICA_BOLD
+        val state = com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState().apply { nonStrokingAlphaConstant = opacity }
+        doc.pages.forEach { page ->
+            val box = page.cropBox
+            val diagonal = kotlin.math.hypot(box.width, box.height)
+            val size = (diagonal / (font.getStringWidth(text) / 1000f) * 0.7f).coerceIn(12f, 140f)
+            val width = font.getStringWidth(text) / 1000f * size
+            val angle = kotlin.math.atan2(box.height, box.width)
+            com.tom_roush.pdfbox.pdmodel.PDPageContentStream(doc, page, com.tom_roush.pdfbox.pdmodel.PDPageContentStream.AppendMode.APPEND, true, true).use { cs ->
+                cs.setGraphicsStateParameters(state)
+                cs.setNonStrokingColor(0.6f, 0.6f, 0.6f)
+                cs.beginText()
+                cs.setFont(font, size)
+                // Centred on the page, along the diagonal.
+                val cx = box.lowerLeftX + box.width / 2 - kotlin.math.cos(angle) * width / 2
+                val cy = box.lowerLeftY + box.height / 2 - kotlin.math.sin(angle) * width / 2
+                cs.setTextMatrix(com.tom_roush.pdfbox.util.Matrix.getRotateInstance(angle.toDouble(), cx, cy))
+                cs.showText(text)
+                cs.endText()
+            }
+        }
+    }
+
     /**
      * Adds every page of [other] at the end. The returned source must stay open until [doc] has
      * been saved, because the copied pages still read from it.
@@ -162,5 +218,26 @@ object PdfPages {
         src.isAllSecurityToBeRemoved = true
         PDFMergerUtility().appendDocument(doc, src)
         return src
+    }
+}
+
+/** Pictures into a PDF: one per page, each page shaped to its picture and A4 wide. */
+object ImagesToPdf {
+    fun make(context: android.content.Context, uris: List<android.net.Uri>, out: File) {
+        PDDocument().use { doc ->
+            uris.forEach { uri ->
+                val bitmap = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(context.contentResolver, uri)) { d, info, _ ->
+                    d.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                    val scale = maxOf(info.size.width, info.size.height) / 2400f
+                    if (scale > 1) d.setTargetSize((info.size.width / scale).toInt(), (info.size.height / scale).toInt())
+                }
+                val image = com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory.createFromImage(doc, bitmap, 0.85f)
+                val w = 595f; val h = w * bitmap.height / bitmap.width
+                val page = com.tom_roush.pdfbox.pdmodel.PDPage(com.tom_roush.pdfbox.pdmodel.common.PDRectangle(w, h))
+                doc.addPage(page)
+                com.tom_roush.pdfbox.pdmodel.PDPageContentStream(doc, page).use { it.drawImage(image, 0f, 0f, w, h) }
+            }
+            doc.save(out)
+        }
     }
 }

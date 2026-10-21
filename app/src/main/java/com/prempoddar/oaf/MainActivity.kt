@@ -1,5 +1,6 @@
 package com.prempoddar.oaf
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.lifecycle.lifecycleScope
 import android.content.Intent
 import android.net.Uri
@@ -59,82 +60,7 @@ class MainActivity : ComponentActivity() {
             val settings: OafSettings? by AppGraph.prefs.settings.collectAsStateWithLifecycle(null)
             val s = settings ?: return@setContent
             OafTheme(s.appearance) {
-                val nav = rememberNavController()
-                fun open(source: DocSource) = nav.navigate("view/" + URLEncoder.encode(AppGraph.put(source), "UTF-8"))
-                LaunchedEffect(incoming.value) { incoming.value?.let { open(it); incoming.value = null } }
-                fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
-                fun go(t: HomeTarget) = when (t) {
-                    is HomeTarget.Folder -> nav.navigate("folder/${enc(t.dir.path)}?search=${t.search}")
-                    is HomeTarget.Of -> nav.navigate("category/${t.category.name}")
-                    HomeTarget.Apps -> nav.navigate("apps")
-                    HomeTarget.Bin -> nav.navigate("bin")
-                    HomeTarget.Storage -> nav.navigate("storage")
-                    HomeTarget.Settings -> nav.navigate("settings")
-                    HomeTarget.Network -> nav.navigate("network")
-                    HomeTarget.Batch -> nav.navigate("batch")
-                }
-                val back: () -> Unit = { nav.popBackStack() }
-                NavHost(
-                    nav, "browser",
-                    enterTransition = { slideInHorizontally { it / 6 } + fadeIn() }, exitTransition = { fadeOut() },
-                    popEnterTransition = { fadeIn() }, popExitTransition = { slideOutHorizontally { it / 6 } + fadeOut() },
-                ) {
-                    composable("browser") { FilesHome(onOpen = ::open, onGo = ::go) }
-                    composable("folder/{path}?search={search}", arguments = listOf(navArgument("search") { type = NavType.BoolType; defaultValue = false })) { e ->
-                        val path = java.net.URLDecoder.decode(e.arguments!!.getString("path")!!, "UTF-8")
-                        FolderScreen(java.io.File(path), e.arguments!!.getBoolean("search"), onOpen = ::open, onBack = back)
-                    }
-                    composable("category/{c}") { e -> CategoryScreen(Category.valueOf(e.arguments!!.getString("c")!!), onOpen = ::open, onBack = back) }
-                    composable("apps") { AppsScreen(onBack = back) }
-                    composable("bin") { BinScreen(onBack = back) }
-                    composable("batch") { com.prempoddar.oaf.ui.edit.BatchScreen(onBack = back) }
-                    composable("network") { com.prempoddar.oaf.ui.browser.NetworkScreen(onBack = back, onOpenServer = { sv -> nav.navigate("remote/${sv.id}") }) }
-                    composable("remote/{id}") { e ->
-                        val server = AppGraph.servers.get(e.arguments!!.getString("id")!!)
-                        if (server == null) LaunchedEffect(Unit) { back() } else com.prempoddar.oaf.ui.browser.RemoteScreen(server, onBack = back, onOpen = ::open)
-                    }
-                    composable("storage") { StorageScreen(onBack = back) }
-                    composable("settings") {
-                        SettingsScreen(
-                            onBack = back, onAppearance = { nav.navigate("appearance") }, onAbout = { nav.navigate("about") },
-                            onBin = { nav.navigate("bin") }, onStorage = { nav.navigate("storage") },
-                        )
-                    }
-                    composable("appearance") {
-                        val scope = rememberCoroutineScope()
-                        AppearanceScreen(s.appearance, OAF_BRAND, onChange = { a -> scope.launch { AppGraph.prefs.update { it.copy(appearance = a) } } }, onBack = back)
-                    }
-                    composable("about") {
-                        AboutScreen(
-                            "OAF", "Open all files: documents, sheets, slides, books, media and archives, all on your phone.",
-                            icon = { LayeredIcon(R.drawable.ic_launcher_background, R.drawable.ic_launcher_foreground) },
-                            credits = listOf(
-                                Credit("pdf.js", "Apache 2.0"),
-                                Credit("docx-preview", "Apache 2.0"), Credit("JSZip", "MIT"), Credit("SheetJS", "Apache 2.0"),
-                                Credit("PdfBox-Android", "Apache 2.0"), Credit("Apache POI", "Apache 2.0"),
-                                Credit("Apache Commons Compress", "Apache 2.0"), Credit("XZ for Java", "Public domain"),
-                                Credit("junrar", "UnRAR licence"), Credit("commonmark-java", "BSD 2-Clause"),
-                                Credit("AndroidSVG", "Apache 2.0"), Credit("AndroidX Media3", "Apache 2.0"),
-                                Credit("Apache Commons Net", "Apache 2.0"), Credit("JSch", "BSD"), Credit("SMBJ", "Apache 2.0"), Credit("OkHttp", "Apache 2.0"),
-                                Credit("Literata, Inter, JetBrains Mono", "SIL Open Font License"),
-                            ),
-                            onBack = back,
-                        )
-                    }
-                    composable("view/{key}") { e ->
-                        val key = java.net.URLDecoder.decode(e.arguments!!.getString("key")!!, "UTF-8")
-                        // Kept for the life of this screen: a new source on every redraw would start loading again.
-                        val source = remember(key) { AppGraph.get(key) ?: DocSource.fromUri(this@MainActivity, Uri.parse(key)).also { AppGraph.put(it) } }
-                        // Opened from another app: back (button or swipe) returns there instead of to OAF's home.
-                        val leave = openedFromOutside && nav.previousBackStackEntry?.destination?.route == "browser"
-                        val onBack: () -> Unit = { if (leave) finish() else nav.popBackStack() }
-                        BackHandler(leave) { onBack() }
-                        // Pages can be light or dark on their own; the app around them keeps its look.
-                        OafTheme(s.appearance.copy(mode = if (s.viewerMode == Appearance.Mode.SYSTEM) s.appearance.mode else s.viewerMode)) {
-                            ViewerHost(source, onBack = onBack, onOpen = ::open)
-                        }
-                    }
-                }
+                OafNav(s, incoming, openedFromOutside, ::finish)
             }
         }
     }
@@ -168,5 +94,97 @@ class MainActivity : ComponentActivity() {
             val source = DocSource.received(this@MainActivity, uri, type)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { incoming.value = source }
         }
+    }
+}
+
+/**
+ * OAF's screens and the way between them, shared by the app itself and by [PickActivity], where
+ * another app is choosing a file ([picker] is set then).
+ */
+@androidx.compose.runtime.Composable
+internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableState<DocSource?>, openedFromOutside: Boolean, finish: () -> Unit, picker: com.prempoddar.oaf.pick.PickRequest? = null) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val nav = rememberNavController()
+    fun open(source: DocSource) {
+        // Picking for another app: the file goes back to it rather than opening here.
+        if (picker != null) { picker.offer(context, source); return }
+        nav.navigate("view/" + URLEncoder.encode(AppGraph.put(source), "UTF-8"))
+    }
+    LaunchedEffect(incoming.value) { incoming.value?.let { open(it); incoming.value = null } }
+    fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+    fun go(t: HomeTarget) = when (t) {
+        is HomeTarget.Folder -> nav.navigate("folder/${enc(t.dir.path)}?search=${t.search}")
+        is HomeTarget.Of -> nav.navigate("category/${t.category.name}")
+        HomeTarget.Apps -> nav.navigate("apps")
+        HomeTarget.Bin -> nav.navigate("bin")
+        HomeTarget.Storage -> nav.navigate("storage")
+        HomeTarget.Settings -> nav.navigate("settings")
+        HomeTarget.Network -> nav.navigate("network")
+        HomeTarget.Batch -> nav.navigate("batch")
+    }
+    val back: () -> Unit = { nav.popBackStack() }
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+    NavHost(
+        nav, picker?.startRoute ?: "browser",
+        enterTransition = { slideInHorizontally { it / 6 } + fadeIn() }, exitTransition = { fadeOut() },
+        popEnterTransition = { fadeIn() }, popExitTransition = { slideOutHorizontally { it / 6 } + fadeOut() },
+    ) {
+        composable("browser") { FilesHome(onOpen = ::open, onGo = ::go) }
+        composable("folder/{path}?search={search}", arguments = listOf(navArgument("search") { type = NavType.BoolType; defaultValue = false })) { e ->
+            val path = java.net.URLDecoder.decode(e.arguments!!.getString("path")!!, "UTF-8")
+            FolderScreen(java.io.File(path), e.arguments!!.getBoolean("search"), onOpen = ::open, onBack = back)
+        }
+        composable("category/{c}") { e -> CategoryScreen(Category.valueOf(e.arguments!!.getString("c")!!), onOpen = ::open, onBack = back) }
+        composable("apps") { AppsScreen(onBack = back) }
+        composable("bin") { BinScreen(onBack = back) }
+        composable("batch") { com.prempoddar.oaf.ui.edit.BatchScreen(onBack = back) }
+        composable("network") { com.prempoddar.oaf.ui.browser.NetworkScreen(onBack = back, onOpenServer = { sv -> nav.navigate("remote/${sv.id}") }) }
+        composable("remote/{id}") { e ->
+            val server = AppGraph.servers.get(e.arguments!!.getString("id")!!)
+            if (server == null) LaunchedEffect(Unit) { back() } else com.prempoddar.oaf.ui.browser.RemoteScreen(server, onBack = back, onOpen = ::open)
+        }
+        composable("storage") { StorageScreen(onBack = back) }
+        composable("settings") {
+            SettingsScreen(
+                onBack = back, onAppearance = { nav.navigate("appearance") }, onAbout = { nav.navigate("about") },
+                onBin = { nav.navigate("bin") }, onStorage = { nav.navigate("storage") },
+            )
+        }
+        composable("appearance") {
+            val scope = rememberCoroutineScope()
+            AppearanceScreen(s.appearance, OAF_BRAND, onChange = { a -> scope.launch { AppGraph.prefs.update { it.copy(appearance = a) } } }, onBack = back)
+        }
+        composable("about") {
+            AboutScreen(
+                "OAF", "Open all files: documents, sheets, slides, books, media and archives, all on your phone.",
+                icon = { LayeredIcon(R.drawable.ic_launcher_background, R.drawable.ic_launcher_foreground) },
+                credits = listOf(
+                    Credit("pdf.js", "Apache 2.0"),
+                    Credit("docx-preview", "Apache 2.0"), Credit("JSZip", "MIT"), Credit("SheetJS", "Apache 2.0"),
+                    Credit("PdfBox-Android", "Apache 2.0"), Credit("Apache POI", "Apache 2.0"),
+                    Credit("Apache Commons Compress", "Apache 2.0"), Credit("XZ for Java", "Public domain"),
+                    Credit("junrar", "UnRAR licence"), Credit("commonmark-java", "BSD 2-Clause"),
+                    Credit("AndroidSVG", "Apache 2.0"), Credit("AndroidX Media3", "Apache 2.0"),
+                    Credit("Apache Commons Net", "Apache 2.0"), Credit("JSch", "BSD"), Credit("SMBJ", "Apache 2.0"), Credit("OkHttp", "Apache 2.0"),
+                    Credit("Literata, Inter, JetBrains Mono", "SIL Open Font License"),
+                ),
+                onBack = back,
+            )
+        }
+        composable("view/{key}") { e ->
+            val key = java.net.URLDecoder.decode(e.arguments!!.getString("key")!!, "UTF-8")
+            // Kept for the life of this screen: a new source on every redraw would start loading again.
+            val source = remember(key) { AppGraph.get(key) ?: DocSource.fromUri(context, Uri.parse(key)).also { AppGraph.put(it) } }
+            // Opened from another app: back (button or swipe) returns there instead of to OAF's home.
+            val leave = openedFromOutside && nav.previousBackStackEntry?.destination?.route == "browser"
+            val onBack: () -> Unit = { if (leave) finish() else nav.popBackStack() }
+            BackHandler(leave) { onBack() }
+            // Pages can be light or dark on their own; the app around them keeps its look.
+            OafTheme(s.appearance.copy(mode = if (s.viewerMode == Appearance.Mode.SYSTEM) s.appearance.mode else s.viewerMode)) {
+                ViewerHost(source, onBack = onBack, onOpen = ::open)
+            }
+        }
+    }
+    if (picker != null && !picker.selecting) com.prempoddar.oaf.pick.PickBanner(picker, androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.BottomCenter))
     }
 }

@@ -140,6 +140,25 @@ fun SelectionBar(
     var compressing by remember { mutableStateOf<List<File>?>(null) }
     var locked by remember { mutableStateOf<Pair<File, Boolean>?>(null) }
     val one = selected.singleOrNull()
+    val picker = com.prempoddar.oaf.pick.LocalPicker.current
+    if (picker != null) {
+        // Choosing for another app: the only thing to do with a selection is send it.
+        androidx.compose.runtime.DisposableEffect(Unit) { picker.selecting = true; onDispose { picker.selecting = false } }
+        val ok = selected.filter { it.isFile && picker.accepts(it) }
+        Surface(color = MaterialTheme.colorScheme.primaryContainer, tonalElevation = 2.dp) {
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = tap(onDone)) { Text("Clear") }
+                Text(
+                    if (ok.size == selected.size) "${ok.size} chosen" else "${ok.size} of ${selected.size} can be sent",
+                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                )
+                Button(enabled = ok.isNotEmpty() && (picker.multiple || ok.size == 1), onClick = { picker.send(ok) }) {
+                    Text(if (picker.multiple) "Send ${ok.size}" else "Send")
+                }
+            }
+        }
+        return
+    }
     fun delete() {
         val items = selected.toList()
         onDone()

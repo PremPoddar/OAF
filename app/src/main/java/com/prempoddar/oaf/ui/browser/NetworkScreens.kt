@@ -1,5 +1,23 @@
 package com.prempoddar.oaf.ui.browser
 
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material.icons.rounded.Computer
+import com.prempoddar.oaf.ui.design.SheetActions
+import com.prempoddar.oaf.ui.design.ToggleCard
+import com.prempoddar.oaf.ui.design.CardSection
+import com.prempoddar.oaf.ui.design.CardGroup
+import com.prempoddar.oaf.ui.design.OptionGrid
+import com.prempoddar.oaf.ui.design.SheetLabel
+import com.prempoddar.oaf.ui.design.SheetHeader
+import com.prempoddar.oaf.ui.design.ToolSheet
 import com.prempoddar.oaf.ui.design.MiddleText
 import android.net.Uri
 import android.widget.Toast
@@ -126,7 +144,7 @@ fun NetworkScreen(onBack: () -> Unit, onOpenServer: (Server) -> Unit) {
 }
 
 @Composable
-private fun ServerDialog(existing: Server?, onDismiss: () -> Unit) {
+internal fun ServerDialog(existing: Server?, onDismiss: () -> Unit) {
     var type by remember { mutableStateOf(existing?.type ?: Server.Type.SMB) }
     var name by remember { mutableStateOf(existing?.name.orEmpty()) }
     var host by remember { mutableStateOf(existing?.host.orEmpty()) }
@@ -139,49 +157,67 @@ private fun ServerDialog(existing: Server?, onDismiss: () -> Unit) {
     var confirmRemove by remember { mutableStateOf(false) }
     val portNumber = port.toIntOrNull()
     val ok = host.isNotBlank() && (port.isEmpty() || portNumber in 1..65535) && (type != Server.Type.SMB || RemotePath.normal(path) != "/")
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (existing == null) "Add a server" else "Change ${existing.name}") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceChips(Server.Type.entries.map { it to it.label }, type, { type = it; port = "" }, Modifier.padding(horizontal = 0.dp))
-                PillTextField(host, { host = it.trim() }, "Address", supporting = "Like 192.168.1.20 or nas.local", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
-                PillTextField(port, { port = it.filter(Char::isDigit).take(5) }, "Port", supporting = "Leave empty for ${if (type == Server.Type.WEBDAV) (if (secure) 443 else 80) else type.port}", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+    var showPassword by remember { mutableStateOf(false) }
+    val defaultPort = if (type == Server.Type.WEBDAV) (if (secure) 443 else 80) else type.port
+    ToolSheet(onDismiss) {
+        SheetHeader(Icons.Rounded.Lan, if (existing == null) "Add a server" else "Change ${existing.name}", "A NAS, a computer sharing folders, or a web drive")
+        SheetLabel("Kind")
+        OptionGrid(Server.Type.entries.toList(), type, onPick = { type = it; port = "" }) { t ->
+            when (t) {
+                Server.Type.SMB -> Triple(Icons.Rounded.Computer, "Windows sharing", "SMB · most NAS and PCs")
+                Server.Type.SFTP -> Triple(Icons.Rounded.Terminal, "SFTP", "Linux, Mac and servers over SSH")
+                Server.Type.FTP -> Triple(Icons.Rounded.Dns, "FTP", "Routers and older NAS")
+                Server.Type.WEBDAV -> Triple(Icons.Rounded.Cloud, "WebDAV", "Nextcloud and web drives")
+            }
+        }
+        SheetLabel("Where")
+        CardGroup {
+            CardSection {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PillTextField(host, { host = it.trim() }, "Address", Modifier.weight(2.2f), supporting = "192.168.1.20 or nas.local", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+                    PillTextField(port, { port = it.filter(Char::isDigit).take(5) }, "Port", Modifier.weight(1f), clearable = false, supporting = "$defaultPort", isError = port.isNotEmpty() && portNumber !in 1..65535, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                }
                 PillTextField(
-                    path, { path = it }, if (type == Server.Type.SMB) "Shared folder" else "Folder (optional)",
-                    supporting = if (type == Server.Type.SMB) "The share's name, like Media or /Media/Films" else "Where to start, like /home/me",
+                    path, { path = it }, if (type == Server.Type.SMB) "Shared folder" else "Start in folder (optional)",
+                    supporting = if (type == Server.Type.SMB) "The share's name, like Media or /Media/Films" else "Like /home/me",
                     isError = type == Server.Type.SMB && path.isNotEmpty() && RemotePath.normal(path) == "/",
                 )
-                PillTextField(user, { user = it.trim() }, "User name", supporting = if (type == Server.Type.SFTP) null else "Empty for guest or anonymous access")
-                PillTextField(
-                    password, { password = it }, "Password",
-                    supporting = if (existing?.secret?.isNotEmpty() == true) "Leave empty to keep the saved one" else null,
-                    visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                )
-                if (type == Server.Type.FTP || type == Server.Type.WEBDAV) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(secure, { Haptics.toggle(it); secure = it })
-                        Text(if (type == Server.Type.FTP) "Encrypted (FTPS)" else "Encrypted (HTTPS)")
-                    }
-                }
-                PillTextField(name, { name = it }, "Name (optional)")
-                if (existing != null) TextButton(onClick = tap { confirmRemove = true }) { Text("Remove this server", color = MaterialTheme.colorScheme.error) }
             }
-        },
-        confirmButton = {
-            TextButton(enabled = ok, onClick = tap {
-                val defaultPort = if (type == Server.Type.WEBDAV) (if (secure) 443 else 80) else type.port
-                val s = Server(
-                    id = existing?.id ?: UUID.randomUUID().toString(), type = type,
-                    name = name.trim().ifEmpty { host.trim() }, host = host.trim(), port = portNumber ?: defaultPort,
-                    path = RemotePath.normal(path), user = user, secure = secure, secret = existing?.secret.orEmpty(),
+            if (type == Server.Type.FTP || type == Server.Type.WEBDAV) ToggleCard(
+                Icons.Rounded.Lock, if (type == Server.Type.FTP) "Encrypted (FTPS)" else "Encrypted (HTTPS)",
+                "Keeps your password and files private on the way", secure,
+            ) { secure = it; port = "" }
+        }
+        SheetLabel("Sign in")
+        CardGroup {
+            CardSection {
+                PillTextField(user, { user = it.trim() }, "User name", supporting = if (type == Server.Type.SFTP) null else "Leave empty for guest or anonymous access", leading = Icons.Rounded.Person)
+                PillTextField(
+                    password, { password = it }, "Password", clearable = false, leading = Icons.Rounded.Key,
+                    supporting = if (existing?.secret?.isNotEmpty() == true) "Leave empty to keep the saved one" else "Kept encrypted on this phone",
+                    visualTransformation = if (showPassword) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailing = { IconButton(onClick = tap { showPassword = !showPassword }) { Icon(if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (showPassword) "Hide password" else "Show password") } },
                 )
-                AppGraph.servers.save(s, if (existing != null && password.isEmpty()) null else password)
-                onDismiss()
-            }) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+            }
+        }
+        SheetLabel("Name")
+        PillTextField(name, { name = it }, "Shown in OAF", supporting = "Optional; the address is used otherwise")
+        if (existing != null) TextButton(onClick = tap { confirmRemove = true }) {
+            Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error)
+            Text("  Remove this server", color = MaterialTheme.colorScheme.error)
+        }
+        SheetActions(if (existing == null) "Add server" else "Save", Icons.Rounded.Check, ok, onCancel = onDismiss) {
+            val s = Server(
+                id = existing?.id ?: UUID.randomUUID().toString(), type = type,
+                name = name.trim().ifEmpty { host.trim() }, host = host.trim(), port = portNumber ?: defaultPort,
+                path = RemotePath.normal(path), user = user, secure = secure, secret = existing?.secret.orEmpty(),
+            )
+            AppGraph.servers.save(s, if (existing != null && password.isEmpty()) null else password)
+            Haptics.confirm()
+            onDismiss()
+        }
+    }
     if (confirmRemove && existing != null) AlertDialog(
         onDismissRequest = { confirmRemove = false },
         title = { Text("Remove ${existing.name}?") },

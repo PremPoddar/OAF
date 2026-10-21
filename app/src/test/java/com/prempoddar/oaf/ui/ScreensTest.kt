@@ -72,6 +72,9 @@ class ScreensTest {
         }
     }
 
+    @Config(qualifiers = "w411dp-h1500dp-xxhdpi")
+    @Test fun serverSheet() = sheet("server-light", light) { com.prempoddar.oaf.ui.browser.ServerDialog(null, {}) }
+
     @Config(qualifiers = "w411dp-h1300dp-xxhdpi")
     @Test fun compressSheet() = sampleFolder().let { f -> sheet("compress-dark", dark) { com.prempoddar.oaf.ui.browser.CompressDialog(listOf(File(f, "itinerary.pdf"), File(f, "Photos")), {}, {}) } }
 

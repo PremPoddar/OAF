@@ -101,10 +101,10 @@ fun OptionCard(icon: ImageVector, title: String, caption: String?, selected: Boo
             .alpha(if (enabled) 1f else 0.45f).heightIn(min = 96.dp).padding(14.dp),
     ) {
         Column {
-            Icon(icon, null, tint = if (selected) s.primary else s.onSurfaceVariant, modifier = Modifier.size(26.dp))
+            Icon(icon, null, tint = if (selected) s.onPrimaryContainer else s.onSurfaceVariant, modifier = Modifier.size(26.dp))
             Spacer(Modifier.height(10.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, color = fg, maxLines = 1)
-            if (caption != null) Text(caption, style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.75f), maxLines = 2)
+            if (caption != null) Text(caption, style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.85f), maxLines = 2)
         }
         if (selected) Box(Modifier.align(Alignment.TopEnd).size(22.dp).clip(CircleShape).background(s.primary), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Check, null, Modifier.size(15.dp), tint = s.onPrimary)

@@ -97,6 +97,18 @@
             </intent-filter>
         </activity>
 
+        <!-- OAF's storage in Android's own file picker, for apps that open documents through it. -->
+        <provider
+            android:name=".pick.OafDocuments"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <!-- "Save as…" next to "OAF" when another app opens or shares a file. -->
         <activity
             android:name=".save.SaveAsActivity"

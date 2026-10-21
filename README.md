@@ -22,7 +22,7 @@ the interface, and the bars slide away while you read. Open files from its own b
 from a network drive, or from any other app with *Open with*. Nothing is uploaded; it all happens on
 the phone.
 
-<p align="center"><img src=".github/assets/showcase.png" alt="OAF's home, a folder, the music player and the compress sheet" width="100%"></p>
+<p align="center"><img src=".github/assets/showcase.png" alt="OAF's home, a folder, the picture editor and the music player" width="100%"></p>
 <p align="center"><sub>Real screens, drawn by the app's own code.</sub></p>
 
 ## ✨ Highlights
@@ -182,6 +182,11 @@ into one APK. `ScreensTest` draws real screens to `app/build/screens`, including
 
 ## 🗂️ Project layout
 
+<p align="center"><img src=".github/assets/modules.png" alt="OAF source packages and what each one does" width="100%"></p>
+
+<details>
+<summary><strong>As text</strong></summary>
+
 ```
 format/   file type detection (magic bytes, zip contents, text heuristics)
 files/    copy, move, rename, the bin, search inside files, clean-up, network drives, split APKs
@@ -197,6 +202,8 @@ pick/     OAF as a file picker for other apps
 engine/   which viewer opens which format
 ui/       Compose screens: browser, viewers, editors
 ```
+
+</details>
 
 ## 📄 License
 

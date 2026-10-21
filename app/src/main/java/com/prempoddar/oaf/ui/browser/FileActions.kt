@@ -1,5 +1,10 @@
 package com.prempoddar.oaf.ui.browser
 
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material.icons.rounded.Compress
+import androidx.compose.material.icons.rounded.FolderZip
 import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Visibility
@@ -256,53 +261,60 @@ fun CompressDialog(items: List<File>, onDismiss: () -> Unit, onCompress: (Compre
     var password by remember { mutableStateOf("") }
     var again by remember { mutableStateOf("") }
     var show by remember { mutableStateOf(false) }
+    val size by androidx.compose.runtime.produceState<Long?>(null, items) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { items.sumOf { FileOps.size(it) } } }
     val mismatch = lock && again.isNotEmpty() && again != password
     val ok = name.isNotBlank() && !name.contains('/') && (!lock || (password.length >= 4 && password == again))
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Compress ${if (items.size == 1) "“${items.first().name}”" else "${items.size} items"}") },
-        text = {
-            androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { com.prempoddar.oaf.ui.design.PillTextField(name, { name = it }, "Name", supporting = "Saved as $name.${format.ext}") }
-                item {
-                    Text("Format", style = MaterialTheme.typography.titleSmall)
-                    com.prempoddar.oaf.ui.design.ChoiceChips(Compressor.Format.entries.map { it to it.label }, format, { format = it; if (!it.passwords) lock = false })
-                }
-                item {
-                    Text("Compression", style = MaterialTheme.typography.titleSmall)
-                    com.prempoddar.oaf.ui.design.ChoiceChips(Compressor.Level.entries.map { it to it.label }, level, { level = it })
-                    Text(
-                        when (level) { Compressor.Level.STORE -> "Fastest; files keep their size."; Compressor.Level.FAST -> "Quick, a little smaller."; Compressor.Level.NORMAL -> "A good balance."; Compressor.Level.MAXIMUM -> "Smallest file; takes longest." },
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Password", style = MaterialTheme.typography.titleSmall)
-                            Text(if (format.passwords) "Locked with AES-256" else "Only ZIP archives can have a password", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        androidx.compose.material3.Switch(lock, { lock = it }, enabled = format.passwords)
-                    }
-                }
-                if (lock) {
-                    item {
-                        val vt = if (show) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation()
-                        val kb = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            com.prempoddar.oaf.ui.design.PillTextField(password, { password = it }, "Password", clearable = false, keyboardOptions = kb, visualTransformation = vt,
-                                supporting = if (password.isNotEmpty() && password.length < 4) "At least 4 characters" else null,
-                                trailing = { IconButton(onClick = tap { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } })
-                            com.prempoddar.oaf.ui.design.PillTextField(again, { again = it }, "Type it again", clearable = false, keyboardOptions = kb, visualTransformation = vt,
-                                isError = mismatch, supporting = if (mismatch) "The passwords don't match" else null)
-                        }
-                    }
+    com.prempoddar.oaf.ui.design.ToolSheet(onDismiss) {
+        com.prempoddar.oaf.ui.design.SheetHeader(
+            Icons.Rounded.FolderZip, "Compress",
+            (if (items.size == 1) items.first().name else "${items.size} items") + (size?.let { " · ${humanSize(it)}" } ?: ""),
+        )
+        com.prempoddar.oaf.ui.design.PillTextField(
+            name, { name = it }, "Archive name", clearable = false,
+            isError = name.contains('/'), supporting = if (name.contains('/')) "A name can't contain /" else null,
+            trailing = { Text(".${format.ext}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 16.dp)) },
+        )
+        com.prempoddar.oaf.ui.design.SheetLabel("Format")
+        com.prempoddar.oaf.ui.design.OptionGrid(Compressor.Format.entries.toList(), format, onPick = { format = it; if (!it.passwords) lock = false }) { f ->
+            when (f) {
+                Compressor.Format.ZIP -> Triple(Icons.Rounded.FolderZip, "ZIP", "Opens on any phone or computer")
+                Compressor.Format.SEVEN_Z -> Triple(Icons.Rounded.Compress, "7z", "The smallest files")
+                Compressor.Format.TAR_GZ -> Triple(Icons.Rounded.Terminal, "TAR.GZ", "Common on Linux and Mac")
+                Compressor.Format.TAR_XZ -> Triple(Icons.Rounded.Inventory2, "TAR.XZ", "Smaller, a little slower")
+                Compressor.Format.TAR -> Triple(Icons.Rounded.Layers, "TAR", "Bundled, not made smaller")
+            }
+        }
+        if (format != Compressor.Format.TAR) {
+            com.prempoddar.oaf.ui.design.SheetLabel("Compression")
+            com.prempoddar.oaf.ui.design.SegmentedBar(Compressor.Level.entries.map { it to it.label }, level) { level = it }
+            Text(
+                when (level) { Compressor.Level.STORE -> "Fastest; files keep their size."; Compressor.Level.FAST -> "Quick, a little smaller."; Compressor.Level.NORMAL -> "A good balance of size and speed."; Compressor.Level.MAXIMUM -> "Smallest file; takes longest." },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp),
+            )
+        }
+        com.prempoddar.oaf.ui.design.SheetLabel("Protection")
+        com.prempoddar.oaf.ui.design.CardGroup {
+            com.prempoddar.oaf.ui.design.ToggleCard(
+                Icons.Rounded.Lock, "Password",
+                if (format.passwords) "Locked with AES-256 encryption" else "Only ZIP archives can have a password",
+                lock, enabled = format.passwords,
+            ) { lock = it }
+            androidx.compose.animation.AnimatedVisibility(lock) {
+                com.prempoddar.oaf.ui.design.CardSection {
+                    val vt = if (show) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation()
+                    val kb = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password)
+                    com.prempoddar.oaf.ui.design.PillTextField(password, { password = it }, "Password", clearable = false, keyboardOptions = kb, visualTransformation = vt,
+                        supporting = if (password.isNotEmpty() && password.length < 4) "At least 4 characters" else null,
+                        trailing = { IconButton(onClick = tap { show = !show }) { Icon(if (show) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (show) "Hide password" else "Show password") } })
+                    com.prempoddar.oaf.ui.design.PillTextField(again, { again = it }, "Type it again", clearable = false, keyboardOptions = kb, visualTransformation = vt,
+                        isError = mismatch, supporting = if (mismatch) "The passwords don't match" else null)
                 }
             }
-        },
-        confirmButton = { TextButton(enabled = ok, onClick = tap { onCompress(Compressor.Options(name.trim(), format, level, password.takeIf { lock })) }) { Text("Compress") } },
-        dismissButton = { TextButton(onClick = tap(onDismiss)) { Text("Cancel") } },
-    )
+        }
+        com.prempoddar.oaf.ui.design.SheetActions("Compress", Icons.Rounded.FolderZip, ok, onCancel = onDismiss) {
+            onCompress(Compressor.Options(name.trim(), format, level, password.takeIf { lock }))
+        }
+    }
 }
 
 @Composable

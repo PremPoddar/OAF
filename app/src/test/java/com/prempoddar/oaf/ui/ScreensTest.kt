@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import androidx.compose.foundation.layout.statusBarsPadding
 
 /** Draws real screens to build/screens to check light, dark and landscape without a phone. */
 @RunWith(RobolectricTestRunner::class)
@@ -64,6 +65,15 @@ class ScreensTest {
     @Test fun folderLight() = sampleFolder().let { f -> shoot("folder-light", light) { FolderScreen(f, onOpen = {}, onBack = {}) } }
     @Test fun appsDark() = shoot("apps-dark", dark) { AppsScreen {} }
     @Test fun settingsDark() = shoot("settings-dark", dark) { SettingsScreen({}, {}, {}, {}, {}) }
+
+    private fun sheet(name: String, a: Appearance, content: @Composable () -> Unit) = shoot(name, a) {
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) {
+            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.statusBarsPadding()) { content() }
+        }
+    }
+
+    @Config(qualifiers = "w411dp-h1300dp-xxhdpi")
+    @Test fun compressSheet() = sampleFolder().let { f -> sheet("compress-dark", dark) { com.prempoddar.oaf.ui.browser.CompressDialog(listOf(File(f, "itinerary.pdf"), File(f, "Photos")), {}, {}) } }
 
     @Config(qualifiers = "w411dp-h1900dp-xxhdpi")
     @Test fun appearanceLight() = shoot("appearance-light", light) { com.prempoddar.oaf.ui.design.AppearanceScreen(light, OAF_BRAND, {}, {}) }

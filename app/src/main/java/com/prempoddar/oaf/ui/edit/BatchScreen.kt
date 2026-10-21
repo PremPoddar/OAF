@@ -1,5 +1,31 @@
 package com.prempoddar.oaf.ui.edit
 
+import androidx.compose.foundation.lazy.items
+import com.prempoddar.oaf.ui.design.CardSection
+import com.prempoddar.oaf.ui.design.CardGroup
+import com.prempoddar.oaf.ui.design.SegmentedBar
+import com.prempoddar.oaf.ui.design.OptionGrid
+import com.prempoddar.oaf.ui.design.SheetLabel
+import com.prempoddar.oaf.ui.design.IconTile
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.LocationOff
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Gradient
+import androidx.compose.material.icons.rounded.Photo
+import androidx.compose.material.icons.rounded.ViewColumn
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
 import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -109,41 +135,132 @@ fun BatchScreen(onBack: () -> Unit) {
         outcome.onSuccess { Haptics.confirm(); result = it }.onFailure { Haptics.reject(); result = it.message ?: "Something went wrong" }
     }
 
-    ExpressiveScaffold("Batch pictures", onBack = onBack) { pad ->
-        LazyColumn(contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + 32.dp)) {
-            item {
-                if (picked.isEmpty()) EmptyState(Icons.Rounded.Collections, "Choose pictures", "Make many smaller or convert them at once, or join them into one.")
-                else Text("${picked.size} picture${if (picked.size == 1) "" else "s"} chosen", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                TonalBigButton(if (picked.isEmpty()) "Choose pictures" else "Choose again", onClick = { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.padding(horizontal = 16.dp))
+    val choose = { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    val total by androidx.compose.runtime.produceState(0L, picked) {
+        value = withContext(Dispatchers.IO) { picked.sumOf { u -> runCatching { com.prempoddar.oaf.io.DocSource.fromUri(context, u).size.coerceAtLeast(0) }.getOrDefault(0L) } }
+    }
+    ExpressiveScaffold(
+        "Batch pictures", onBack = onBack,
+        bottomBar = {
+            androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    BigButton(
+                        when { picked.isEmpty() -> "Choose pictures first"; mode == "each" -> "Save ${picked.size} cop${if (picked.size == 1) "y" else "ies"}"; else -> "Join ${picked.size} pictures" },
+                        onClick = { run() }, icon = if (mode == "each") Icons.Rounded.Collections else Icons.Rounded.ViewAgenda,
+                        enabled = picked.isNotEmpty() && progress == null && (mode == "each" || picked.size > 1),
+                    )
+                }
             }
+        },
+    ) { pad ->
+        LazyColumn(
+            contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding() + 24.dp, start = 16.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             item {
-                SectionLabel("What to do")
-                ChoiceChips(listOf("each" to "A copy of each", "down" to "Join, one under another", "across" to "Join, side by side"), mode, { mode = it })
-                SectionLabel("Size")
-                ChoiceChips(listOf(0 to "As they are", 4096 to "4096 px", 2048 to "2048 px", 1600 to "1600 px", 1080 to "1080 px", 720 to "720 px"), maxSide, { maxSide = it })
-                Text("The longest side, at most. Pictures already smaller stay as they are.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
-                SectionLabel("Save as")
-                ChoiceChips(ImageOps.Format.entries.map { it to it.label }, format, { format = it })
-                if (format.lossy) {
-                    SectionLabel("File size")
-                    ChoiceChips(listOf(0 to "Any", 100 to "Under 100 KB", 300 to "Under 300 KB", 500 to "Under 500 KB", 1024 to "Under 1 MB"), limitKb, { limitKb = it })
-                    if (limitKb == 0) Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                        Text("Quality ${quality.toInt()}", style = MaterialTheme.typography.labelLarge)
-                        Slider(quality, sliding(40f..100f) { quality = it }, valueRange = 40f..100f)
+                if (picked.isEmpty()) {
+                    androidx.compose.material3.Surface(onClick = { Haptics.tap(); choose() }, shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            IconTile(Icons.Rounded.AddPhotoAlternate, size = 72.dp, container = MaterialTheme.colorScheme.primary, tint = MaterialTheme.colorScheme.onPrimary)
+                            Text("Choose pictures", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 14.dp))
+                            Text("Make many smaller or convert them at once, or join them into one.", style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
+                } else {
+                    androidx.compose.material3.Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(vertical = 14.dp)) {
+                            Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("${picked.size} picture${if (picked.size == 1) "" else "s"}", style = MaterialTheme.typography.titleLarge)
+                                    if (total > 0) Text(com.prempoddar.oaf.ui.browser.humanSize(total) + " together", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                androidx.compose.material3.FilledTonalButton(onClick = { Haptics.tap(); choose() }) { Text("Change") }
+                            }
+                            androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
+                                items(picked.size) { i -> Thumb(picked[i]) }
+                            }
+                        }
                     }
                 }
-                Text("Copies are saved without the camera's location details.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
             }
             item {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    progress?.let { (done, total) ->
-                        Text("Working on $done of $total…", style = MaterialTheme.typography.bodyMedium)
-                        LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth())
+                SheetLabel("What to do")
+                Spacer(Modifier.height(8.dp))
+                OptionGrid(listOf("each", "down", "across"), mode, columns = 3, onPick = { mode = it }) { m ->
+                    when (m) {
+                        "each" -> Triple(Icons.Rounded.Collections, "Copies", "One of each")
+                        "down" -> Triple(Icons.Rounded.ViewAgenda, "Stack", "One tall picture")
+                        else -> Triple(Icons.Rounded.ViewColumn, "Across", "One wide picture")
                     }
-                    result?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
-                    BigButton(if (mode == "each") "Save copies" else "Join and save", onClick = { run() }, enabled = picked.isNotEmpty() && progress == null && (mode == "each" || picked.size > 1))
+                }
+            }
+            item {
+                SheetLabel("Size")
+                Spacer(Modifier.height(8.dp))
+                SegmentedBar(listOf(0 to "Same", 4096 to "4096", 2048 to "2048", 1080 to "1080", 720 to "720"), maxSide) { maxSide = it }
+                Text(if (maxSide == 0) "Pictures keep their size." else "The longest side at most $maxSide pixels; smaller pictures stay as they are.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
+            }
+            item {
+                SheetLabel("Save as")
+                Spacer(Modifier.height(8.dp))
+                OptionGrid(ImageOps.Format.entries.toList(), format, columns = 3, onPick = { format = it }) { f ->
+                    when (f) {
+                        ImageOps.Format.JPEG -> Triple(Icons.Rounded.Photo, "JPEG", "Small photos")
+                        ImageOps.Format.PNG -> Triple(Icons.Rounded.Gradient, "PNG", "Lossless")
+                        ImageOps.Format.WEBP -> Triple(Icons.Rounded.Bolt, "WebP", "Small, modern")
+                    }
+                }
+            }
+            if (format.lossy) item {
+                SheetLabel("File size")
+                Spacer(Modifier.height(8.dp))
+                SegmentedBar(listOf(0 to "Any", 100 to "100 KB", 300 to "300 KB", 500 to "500 KB", 1024 to "1 MB"), limitKb) { limitKb = it }
+                if (limitKb == 0) { Spacer(Modifier.height(10.dp)); CardGroup {
+                    CardSection {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Quality", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            Text("${quality.toInt()}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Slider(quality, sliding(40f..100f) { quality = it }, valueRange = 40f..100f)
+                    }
+                } } else Text("Each copy is made as good as it can be while staying under ${if (limitKb >= 1024) "${limitKb / 1024} MB" else "$limitKb KB"}.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
+            }
+            item {
+                androidx.compose.material3.Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.LocationOff, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Copies go to Pictures/OAF, without the camera's location details.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+            if (progress != null || result != null) item {
+                androidx.compose.material3.Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        progress?.let { (done, total) ->
+                            Text("Working on $done of $total…", style = MaterialTheme.typography.titleMedium)
+                            LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth())
+                        }
+                        result?.let {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                                Text(it, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 10.dp))
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/** A small square preview of a chosen picture. */
+@Composable
+private fun Thumb(uri: Uri) {
+    val context = LocalContext.current
+    val bmp by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) { runCatching { context.contentResolver.loadThumbnail(uri, android.util.Size(240, 240), null).asImageBitmap() }.getOrNull() }
+    }
+    androidx.compose.foundation.layout.Box(Modifier.size(76.dp).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+        bmp?.let { androidx.compose.foundation.Image(it, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
     }
 }

@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.MiddleText
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.ThumbnailUtils
@@ -162,7 +163,7 @@ fun FileRow(e: Entry, selected: Boolean, selecting: Boolean, onClick: () -> Unit
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(e.file.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            MiddleText(e.file.name, MaterialTheme.typography.titleMedium)
             Text(remember(e, extra) { describe(e, extra) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (!selecting) trailing()
@@ -188,9 +189,6 @@ fun FileCell(e: Entry, selected: Boolean, onClick: () -> Unit, onLongClick: () -
             if (selected) Icon(Icons.Rounded.CheckCircle, "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))
         }
         // Always two lines tall, so every card in the grid is the same size; long names end in "…".
-        Text(
-            e.file.name, style = MaterialTheme.typography.bodyMedium, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-        )
+        MiddleText(e.file.name, MaterialTheme.typography.bodyMedium, Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), maxLines = 2, minLines = 2)
     }
 }

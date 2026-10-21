@@ -89,7 +89,7 @@ fun ViewerScaffold(
                 Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = tap(onBack)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                     Column(Modifier.weight(1f)) {
-                        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        com.prempoddar.oaf.ui.design.MiddleText(title, MaterialTheme.typography.titleMedium)
                         if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1)
                     }
                     LocalEngineSwitch.current?.let { sw ->

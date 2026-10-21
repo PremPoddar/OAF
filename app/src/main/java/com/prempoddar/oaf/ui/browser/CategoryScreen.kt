@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.data.sortFor
+import com.prempoddar.oaf.data.sortedAt
 import com.prempoddar.oaf.ui.design.tap
 import android.content.Context
 import android.provider.MediaStore
@@ -119,6 +121,7 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
     var grid by rememberSaveable { mutableStateOf(category.grid) }
     BackHandler(selected.isNotEmpty() || query != null) { if (selected.isNotEmpty()) selected.clear() else query = null }
 
+    val place = "category:${category.name}"
     val all by produceState<List<Entry>?>(null, changes, settings.showHidden) {
         value = withContext(Dispatchers.IO) {
             queryCategory(context, category).filter { settings.showHidden || !it.file.path.contains("/.") }
@@ -127,7 +130,8 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
     val list = all?.let { l ->
         val q = query?.trim()?.lowercase()
         val filtered = if (q.isNullOrEmpty()) l else l.filter { it.file.name.lowercase().contains(q) }
-        sortEntries(filtered, settings.sort, false, settings.descending)
+        val (by, down) = settings.sortFor(place)
+        sortEntries(filtered, by, false, down)
     }
     val selecting = selected.isNotEmpty()
 
@@ -171,8 +175,8 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
     }
 
     if (sheet) SortSheet(
-        settings.sort, settings.descending, settings.foldersFirst, settings.showHidden, grid,
-        onSort = { s, d -> scope.launch { AppGraph.prefs.update { it.copy(sort = s, descending = d) } } },
+        settings.sortFor(place).first, settings.sortFor(place).second, settings.foldersFirst, settings.showHidden, grid,
+        onSort = { s, d -> scope.launch { AppGraph.prefs.update { it.sortedAt(place, s, d) } } },
         onFoldersFirst = { v -> scope.launch { AppGraph.prefs.update { it.copy(foldersFirst = v) } } },
         onHidden = { v -> scope.launch { AppGraph.prefs.update { it.copy(showHidden = v) } } },
         onGrid = { grid = it },

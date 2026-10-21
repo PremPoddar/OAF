@@ -41,6 +41,11 @@ data class OafSettings(
     /** Ask before moving to the bin. */
     val confirmDelete: Boolean = true,
     val recents: List<Recent> = emptyList(),
+    /**
+     * Sort order chosen in each place ("folders", "category:IMAGES"…), so photos can be newest
+     * first while files stay by name. Places never sorted use [sort] and [descending].
+     */
+    val sorts: Map<String, Pair<SortBy, Boolean>> = emptyMap(),
     val favourites: List<String> = emptyList(),
 )
 
@@ -56,6 +61,7 @@ class Prefs(private val context: Context) {
         val dynamic = booleanPreferencesKey("dynamic")
         val accent = intPreferencesKey("accent")
         val black = booleanPreferencesKey("pure_black")
+        val sorts = stringPreferencesKey("sorts")
         val look = stringPreferencesKey("look")
         val foldersFirst = booleanPreferencesKey("folders_first")
         val confirmDelete = booleanPreferencesKey("confirm_delete")
@@ -83,6 +89,7 @@ class Prefs(private val context: Context) {
             p[K.confirmDelete] = n.confirmDelete
             p[K.sort] = n.sort.name
             p[K.descending] = n.descending
+            p[K.sorts] = SortMap.encode(n.sorts)
             p[K.viewerMode] = n.viewerMode.name
             p[K.hidden] = n.showHidden
             p[K.grid] = n.grid
@@ -116,6 +123,7 @@ class Prefs(private val context: Context) {
             sort = this[K.sort]?.let { runCatching { SortBy.valueOf(it) }.getOrNull() } ?: d.sort,
             // Before there was a direction, dates and sizes always listed the newest and largest first.
             descending = this[K.descending] ?: (this[K.sort] == SortBy.DATE.name || this[K.sort] == SortBy.SIZE.name),
+            sorts = SortMap.decode(this[K.sorts]),
             viewerMode = this[K.viewerMode]?.let { runCatching { Appearance.Mode.valueOf(it) }.getOrNull() } ?: d.viewerMode,
             showHidden = this[K.hidden] ?: d.showHidden,
             grid = this[K.grid] ?: d.grid,
@@ -127,4 +135,20 @@ class Prefs(private val context: Context) {
     companion object {
         const val MAX_RECENTS = 60
     }
+}
+
+/** The sort for [place]: its own if one was picked there, else the app-wide one. */
+fun OafSettings.sortFor(place: String): Pair<SortBy, Boolean> = sorts[place] ?: (sort to descending)
+
+/** These settings with [place] sorted by [by], [descending] or not. */
+fun OafSettings.sortedAt(place: String, by: SortBy, descending: Boolean) = copy(sorts = sorts + (place to (by to descending)))
+
+/** "folders=NAME:0;category:IMAGES=DATE:1", as kept in the preferences. */
+internal object SortMap {
+    fun encode(m: Map<String, Pair<SortBy, Boolean>>) = m.entries.joinToString(";") { (k, v) -> "$k=${v.first.name}:${if (v.second) 1 else 0}" }
+    fun decode(s: String?): Map<String, Pair<SortBy, Boolean>> = s.orEmpty().split(';').mapNotNull { part ->
+        val key = part.substringBefore('=', ""); val v = part.substringAfter('=', "")
+        val by = runCatching { SortBy.valueOf(v.substringBefore(':')) }.getOrNull()
+        if (key.isEmpty() || by == null) null else key to (by to (v.substringAfter(':') == "1"))
+    }.toMap()
 }

@@ -381,3 +381,50 @@ fun IconSwitch(checked: Boolean, enabled: Boolean = true, onChange: (Boolean) ->
         },
     )
 }
+
+/**
+ * Text that, when too long, loses its middle rather than its end: "Holiday photos fro…ach 2024.jpg".
+ * Names keep their ending and extension this way, which tell files apart better than the start.
+ */
+@Composable
+fun MiddleText(
+    text: String, style: androidx.compose.ui.text.TextStyle, modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified, maxLines: Int = 1, minLines: Int = 1,
+) {
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val merged = androidx.compose.material3.LocalTextStyle.current.merge(style)
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+        val width = constraints.maxWidth
+        val shown = androidx.compose.runtime.remember(text, merged, width, maxLines) {
+            if (width == androidx.compose.ui.unit.Constraints.Infinity) text
+            else MiddleEllipsis.cut(text) { candidate ->
+                !measurer.measure(candidate, merged, maxLines = maxLines, constraints = androidx.compose.ui.unit.Constraints(maxWidth = width)).hasVisualOverflow
+            }
+        }
+        Text(shown, style = style, color = color, maxLines = maxLines, minLines = minLines, overflow = androidx.compose.ui.text.style.TextOverflow.Clip)
+    }
+}
+
+object MiddleEllipsis {
+    /**
+     * The longest version of [text] with its middle replaced by "…" that [fits]: about two thirds
+     * from the start and the rest from the end, always keeping a file's extension whole.
+     */
+    fun cut(text: String, fits: (String) -> Boolean): String {
+        if (fits(text)) return text
+        val dot = text.lastIndexOf('.')
+        val ext = if (dot > 0 && text.length - dot <= 10) text.length - dot else 0
+        fun keep(n: Int): String {
+            val tail = maxOf(ext + minOf(4, maxOf(0, n - ext) / 3), (n * 0.35f).toInt()).coerceAtMost(n)
+            val head = n - tail
+            return text.take(head) + "…" + text.takeLast(tail)
+        }
+        var lo = 1; var hi = text.length - 1; var best = keep(1)
+        while (lo <= hi) {
+            val mid = (lo + hi) / 2
+            val c = keep(mid)
+            if (fits(c)) { best = c; lo = mid + 1 } else hi = mid - 1
+        }
+        return best
+    }
+}

@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.MiddleText
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -310,7 +311,7 @@ fun RemoteScreen(server: Server, onBack: () -> Unit, onOpen: (DocSource) -> Unit
                             ) {
                                 KindMark(kind)
                                 Column(Modifier.weight(1f)) {
-                                    Text(e.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    MiddleText(e.name, MaterialTheme.typography.titleMedium)
                                     val date = if (e.modified > 0) DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(e.modified)) else null
                                     Text(listOfNotNull(if (e.dir) "Folder" else humanSize(e.size), date).joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }

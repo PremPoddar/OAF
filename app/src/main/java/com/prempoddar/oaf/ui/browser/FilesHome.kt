@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.MiddleText
 import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Lan
 import com.prempoddar.oaf.ui.design.tap
@@ -201,7 +202,7 @@ fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
                                     .combinedClickable(onClick = { openRecent(r.uri) }).padding(12.dp),
                             ) {
                                 KindMark(kind, file, 48.dp)
-                                Text(r.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp).height(40.dp))
+                                MiddleText(r.name, MaterialTheme.typography.bodyMedium, Modifier.padding(top = 10.dp).height(40.dp), maxLines = 2)
                             }
                         }
                     }

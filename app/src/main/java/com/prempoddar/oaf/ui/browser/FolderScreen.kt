@@ -1,5 +1,7 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.data.sortFor
+import com.prempoddar.oaf.data.sortedAt
 import com.prempoddar.oaf.ui.design.tap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -154,7 +156,8 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
     var snippets by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     LaunchedEffect(query, inside) { if (query.isNullOrBlank()) debounced = query else { delay(if (inside) 600 else 250); debounced = query } }
 
-    val entries by produceState<List<Entry>?>(null, path, debounced, settings.showHidden, settings.sort, settings.foldersFirst, changes, tick, inside) {
+    val (sortBy, sortDown) = settings.sortFor("folders")
+    val entries by produceState<List<Entry>?>(null, path, debounced, settings.showHidden, sortBy, sortDown, settings.foldersFirst, changes, tick, inside) {
         val q = debounced?.trim()?.lowercase()
         if (inside && !q.isNullOrEmpty()) {
             value = null
@@ -169,7 +172,7 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
                 dir.walkTopDown().onEnter { settings.showHidden || !it.name.startsWith(".") || it == dir }.maxDepth(12)
                     .filter { it != dir && it.name.lowercase().contains(q) }.take(1000).toList()
             } else dir.listFiles()?.toList().orEmpty()
-            sortEntries(files.filter { settings.showHidden || !it.name.startsWith(".") }.map(::entryOf), settings.sort, settings.foldersFirst, settings.descending)
+            sortEntries(files.filter { settings.showHidden || !it.name.startsWith(".") }.map(::entryOf), sortBy, settings.foldersFirst, sortDown)
         }
     }
     val list = entries
@@ -267,8 +270,8 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
     }
 
     if (sheet) SortSheet(
-        settings.sort, settings.descending, settings.foldersFirst, settings.showHidden, settings.grid,
-        onSort = { s, d -> scope.launch { AppGraph.prefs.update { it.copy(sort = s, descending = d) } } },
+        sortBy, sortDown, settings.foldersFirst, settings.showHidden, settings.grid,
+        onSort = { s, d -> scope.launch { AppGraph.prefs.update { it.sortedAt("folders", s, d) } } },
         onFoldersFirst = { v -> scope.launch { AppGraph.prefs.update { it.copy(foldersFirst = v) } } },
         onHidden = { v -> scope.launch { AppGraph.prefs.update { it.copy(showHidden = v) } } },
         onGrid = { v -> scope.launch { AppGraph.prefs.update { it.copy(grid = v) } } },

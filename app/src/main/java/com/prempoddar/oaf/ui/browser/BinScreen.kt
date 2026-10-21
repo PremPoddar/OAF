@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import com.prempoddar.oaf.ui.design.MiddleText
 import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -69,7 +70,7 @@ fun BinScreen(onBack: () -> Unit) {
             items(items, key = { it.id }) { item ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(item.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        MiddleText(item.name, MaterialTheme.typography.titleMedium)
                         Text("${humanSize(item.size)} · from ${item.originalPath.substringBeforeLast('/').substringAfterLast('/')}", style = MaterialTheme.typography.bodySmall, color = paper.muted)
                     }
                     TextButton(onClick = tap { io { AppGraph.bin.restore(item) } }) { Text("Restore") }
@@ -171,7 +172,7 @@ private fun CleanUpSection() {
             if (f.path in gone) return
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(f.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    MiddleText(f.name, MaterialTheme.typography.bodyLarge)
                     Text(detail, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 TextButton(onClick = tap { toBin(f) }) { Text("Delete", color = MaterialTheme.colorScheme.error) }

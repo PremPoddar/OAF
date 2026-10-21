@@ -116,7 +116,11 @@ object NaturalOrder : Comparator<String> {
  * copy/cut/share/delete/rename/compress, paste, and new files and folders.
  */
 @Composable
-fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) -> Unit, onBack: () -> Unit) {
+fun FolderScreen(start: File, startSearch: Boolean = false, focus: String? = null, onOpen: (DocSource) -> Unit, onBack: () -> Unit) {
+    // Opened to point out one file: scroll to it once, and light it up for a moment.
+    var pointOut by remember { mutableStateOf(focus) }
+    var lit by remember { mutableStateOf<String?>(null) }
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settings by AppGraph.prefs.settings.collectAsStateWithLifecycle(OafSettings())
@@ -176,6 +180,16 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
         }
     }
     val list = entries
+    LaunchedEffect(entries, pointOut) {
+        val name = pointOut ?: return@LaunchedEffect
+        val at = entries?.indexOfFirst { it.file.name == name } ?: return@LaunchedEffect
+        pointOut = null
+        if (at < 0) return@LaunchedEffect
+        gridState.animateScrollToItem(at)
+        lit = name
+        kotlinx.coroutines.delay(1800)
+        lit = null
+    }
     val selecting = selected.isNotEmpty()
     val isFav = path in settings.favourites
 
@@ -229,12 +243,13 @@ fun FolderScreen(start: File, startSearch: Boolean = false, onOpen: (DocSource) 
                     Modifier.weight(1f).fillMaxWidth(),
                 )
                 else -> LazyVerticalGrid(
+                    state = gridState,
                     columns = if (settings.grid) GridCells.Adaptive(112.dp) else GridCells.Adaptive(360.dp),
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(start = if (settings.grid) 12.dp else 0.dp, end = if (settings.grid) 12.dp else 0.dp, top = 4.dp, bottom = 120.dp),
                 ) {
                     items(list, key = { it.file.path }) { e ->
-                        val isSel = e.file in selected
+                        val isSel = e.file in selected || e.file.name == lit
                         val click: () -> Unit = {
                             when {
                                 selecting -> { if (isSel) selected.remove(e.file) else selected.add(e.file) }

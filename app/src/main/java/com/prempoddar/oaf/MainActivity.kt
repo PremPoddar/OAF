@@ -113,7 +113,7 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
     LaunchedEffect(incoming.value) { incoming.value?.let { open(it); incoming.value = null } }
     fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
     fun go(t: HomeTarget) = when (t) {
-        is HomeTarget.Folder -> nav.navigate("folder/${enc(t.dir.path)}?search=${t.search}")
+        is HomeTarget.Folder -> nav.navigate("folder/${enc(t.dir.path)}?search=${t.search}&focus=${enc(t.focus.orEmpty())}")
         is HomeTarget.Of -> nav.navigate("category/${t.category.name}")
         HomeTarget.Apps -> nav.navigate("apps")
         HomeTarget.Bin -> nav.navigate("bin")
@@ -130,9 +130,13 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
         popEnterTransition = { fadeIn() }, popExitTransition = { slideOutHorizontally { it / 6 } + fadeOut() },
     ) {
         composable("browser") { FilesHome(onOpen = ::open, onGo = ::go) }
-        composable("folder/{path}?search={search}", arguments = listOf(navArgument("search") { type = NavType.BoolType; defaultValue = false })) { e ->
+        composable(
+            "folder/{path}?search={search}&focus={focus}",
+            arguments = listOf(navArgument("search") { type = NavType.BoolType; defaultValue = false }, navArgument("focus") { type = NavType.StringType; defaultValue = "" }),
+        ) { e ->
             val path = java.net.URLDecoder.decode(e.arguments!!.getString("path")!!, "UTF-8")
-            FolderScreen(java.io.File(path), e.arguments!!.getBoolean("search"), onOpen = ::open, onBack = back)
+            val focus = java.net.URLDecoder.decode(e.arguments!!.getString("focus").orEmpty(), "UTF-8").ifEmpty { null }
+            FolderScreen(java.io.File(path), e.arguments!!.getBoolean("search"), focus, onOpen = ::open, onBack = back)
         }
         composable("category/{c}") { e -> CategoryScreen(Category.valueOf(e.arguments!!.getString("c")!!), onOpen = ::open, onBack = back) }
         composable("apps") { AppsScreen(onBack = back) }
@@ -143,7 +147,7 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
             val server = AppGraph.servers.get(e.arguments!!.getString("id")!!)
             if (server == null) LaunchedEffect(Unit) { back() } else com.prempoddar.oaf.ui.browser.RemoteScreen(server, onBack = back, onOpen = ::open)
         }
-        composable("storage") { StorageScreen(onBack = back) }
+        composable("storage") { StorageScreen(onBack = back, onShow = { f -> go(HomeTarget.Folder(f.parentFile ?: f, focus = f.name)) }) }
         composable("settings") {
             SettingsScreen(
                 onBack = back, onAppearance = { nav.navigate("appearance") }, onAbout = { nav.navigate("about") },

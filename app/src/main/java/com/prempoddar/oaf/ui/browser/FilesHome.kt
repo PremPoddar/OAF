@@ -1,5 +1,9 @@
 package com.prempoddar.oaf.ui.browser
 
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import com.prempoddar.oaf.ui.design.MiddleText
 import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Lan
@@ -90,7 +94,8 @@ import java.io.File
 
 /** Where the home screen can send the user. */
 sealed interface HomeTarget {
-    data class Folder(val dir: File, val search: Boolean = false) : HomeTarget
+    /** A folder; [focus] is a file in it to scroll to and point out. */
+    data class Folder(val dir: File, val search: Boolean = false, val focus: String? = null) : HomeTarget
     data class Of(val category: Category) : HomeTarget
     data object Apps : HomeTarget
     data object Bin : HomeTarget
@@ -135,6 +140,7 @@ fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
     }
     val roots = remember(access) { Storage.roots(context) }
     val insets = WindowInsets.safeDrawing.asPaddingValues()
+    val scope = rememberCoroutineScope()
     fun openRecent(uri: String) {
         val u = Uri.parse(uri)
         onOpen(if (u.scheme == "file") DocSource.fromFile(File(u.path!!)) else DocSource.fromUri(context, u))
@@ -197,12 +203,25 @@ fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
                         items(settings.recents.take(20), key = { it.uri }) { r ->
                             val kind = runCatching { FileKind.valueOf(r.kind) }.getOrDefault(FileKind.UNKNOWN)
                             val file = Uri.parse(r.uri).takeIf { it.scheme == "file" }?.path?.let(::File)
-                            Column(
-                                Modifier.width(136.dp).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainer)
-                                    .combinedClickable(onClick = { openRecent(r.uri) }).padding(12.dp),
-                            ) {
-                                KindMark(kind, file, 48.dp)
-                                MiddleText(r.name, MaterialTheme.typography.bodyMedium, Modifier.padding(top = 10.dp).height(40.dp), maxLines = 2)
+                            var menu by remember { mutableStateOf(false) }
+                            Box {
+                                Column(
+                                    Modifier.width(136.dp).clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainer)
+                                        .combinedClickable(onClick = { openRecent(r.uri) }, onLongClick = { menu = true }).padding(12.dp),
+                                ) {
+                                    KindMark(kind, file, 48.dp)
+                                    MiddleText(r.name, MaterialTheme.typography.bodyMedium, Modifier.padding(top = 10.dp).height(40.dp), maxLines = 2)
+                                }
+                                DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                                    if (file?.parentFile != null && access) DropdownMenuItem(
+                                        text = { Text("Show in folder") }, leadingIcon = { Icon(Icons.Rounded.FolderOpen, null) },
+                                        onClick = tap { menu = false; onGo(HomeTarget.Folder(file.parentFile!!, focus = file.name)) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Remove from Recents") }, leadingIcon = { Icon(Icons.Rounded.Close, null) },
+                                        onClick = tap { menu = false; scope.launch { AppGraph.prefs.update { st -> st.copy(recents = st.recents.filter { it.uri != r.uri }) } } },
+                                    )
+                                }
                             }
                         }
                     }

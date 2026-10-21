@@ -1,5 +1,6 @@
 package com.prempoddar.oaf.ui.browser
 
+import androidx.compose.material.icons.rounded.FolderOpen
 import com.prempoddar.oaf.ui.design.MiddleText
 import com.prempoddar.oaf.ui.design.tap
 import androidx.compose.foundation.background
@@ -91,7 +92,7 @@ fun BinScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun StorageScreen(onBack: () -> Unit) {
+fun StorageScreen(onBack: () -> Unit, onShow: (File) -> Unit = {}) {
     val context = LocalContext.current
     val paper = LocalPaper.current
     val usage by produceState<Storage.Usage?>(null) { value = withContext(Dispatchers.IO) { Storage.usage(context) } }
@@ -127,13 +128,13 @@ fun StorageScreen(onBack: () -> Unit) {
                 }
             }
         }
-        CleanUpSection()
+        CleanUpSection(onShow)
     }
 }
 
 /** Suggestions for freeing space: found on request, each one sent to the bin with a tap. */
 @Composable
-private fun CleanUpSection() {
+private fun CleanUpSection(onShow: (File) -> Unit) {
     val paper = LocalPaper.current
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
@@ -175,6 +176,7 @@ private fun CleanUpSection() {
                     MiddleText(f.name, MaterialTheme.typography.bodyLarge)
                     Text(detail, style = MaterialTheme.typography.bodySmall, color = paper.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                IconButton(onClick = tap { onShow(f) }) { Icon(Icons.Rounded.FolderOpen, "Show ${f.name} in its folder", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
                 TextButton(onClick = tap { toBin(f) }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             }
         }

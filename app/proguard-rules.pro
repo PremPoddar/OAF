@@ -38,3 +38,8 @@
 -dontwarn javax.el.**
 -dontwarn net.engio.**
 -dontwarn org.apache.log4j.**
+# Joining split apps into one APK, and signing it.
+-keep class com.reandroid.** { *; }
+-keep class com.android.apksig.** { *; }
+-dontwarn com.reandroid.**
+-dontwarn com.android.apksig.**

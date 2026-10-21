@@ -70,6 +70,7 @@ private val documentMimes = listOf(
     "application/pdf", "application/msword", "application/vnd.%", "application/rtf", "application/epub+zip",
     "text/plain", "text/csv", "text/markdown", "text/html", "application/json",
 )
+private val apkExts = listOf("apk", "apks", "xapk", "apkm")
 private val archiveExts = listOf("zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz")
 
 /**
@@ -86,7 +87,8 @@ fun queryCategory(context: Context, category: Category): List<Entry> {
         Category.AUDIO -> "$col LIKE ?" to arrayOf("audio/%")
         Category.DOCUMENTS -> documentMimes.joinToString(" OR ") { "$col LIKE ?" } to documentMimes.toTypedArray()
         Category.ARCHIVES -> archiveExts.joinToString(" OR ") { "$data LIKE ?" } to archiveExts.map { "%.$it" }.toTypedArray()
-        Category.APKS -> "$data LIKE ?" to arrayOf("%.apk")
+        // Single apps and split-app bundles from any store or backup tool.
+        Category.APKS -> apkExts.joinToString(" OR ") { "$data LIKE ?" } to apkExts.map { "%.$it" }.toTypedArray()
     }
     val projection = arrayOf(MediaStore.Files.FileColumns._ID, data, MediaStore.Files.FileColumns.SIZE, MediaStore.Files.FileColumns.DATE_MODIFIED)
     val thumbs = category == Category.IMAGES || category == Category.VIDEOS || category == Category.AUDIO

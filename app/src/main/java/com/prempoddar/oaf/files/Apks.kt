@@ -83,18 +83,48 @@ object Apks {
 
     fun cachedIcon(pkg: String, px: Int): Bitmap? = icons.get("$pkg:$px")
 
+    /** How a split app goes out: one merged APK, one bundle file, or its parts as they are. */
+    enum class Form { UNIVERSAL, BUNDLE }
+
+    private fun cleanName(app: InstalledApp) = app.label.replace(Regex("[\\\\/:*?\"<>|]"), "").trim().ifEmpty { app.pkg }
+
     /** A file name people will recognise: "Signal 7.12.apk". */
-    fun fileName(app: InstalledApp): String {
-        val clean = app.label.replace(Regex("[\\\\/:*?\"<>|]"), "").trim().ifEmpty { app.pkg }
-        return "$clean ${app.version}".trim() + if (app.split) ".apks" else ".apk"
+    fun fileName(app: InstalledApp, form: Form = Form.UNIVERSAL): String =
+        "${cleanName(app)} ${app.version}".trim() + if (app.split && form == Form.BUNDLE) ".apks" else ".apk"
+
+    /** What one part of a split app is for, in words: "Processor: arm64-v8a", "Language: English". */
+    fun partLabel(app: InstalledApp, apk: File): String {
+        if (apk == app.apks.first()) return "Main app"
+        val name = apk.nameWithoutExtension.removePrefix("split_")
+        val config = name.substringAfter("config.", "")
+        return when {
+            config.isEmpty() -> "Feature: ${name.replace('_', ' ')}"
+            config in setOf("arm64_v8a", "armeabi_v7a", "x86", "x86_64", "armeabi") -> "Processor: ${config.replace('_', '-')}"
+            config.endsWith("dpi") -> "Screen: $config"
+            else -> "Language: " + java.util.Locale.forLanguageTag(config.replace('_', '-')).displayName.ifEmpty { config }
+        }
     }
 
-    /** Writes the app's package (or bundle of splits) into [dir] and returns it. */
-    fun export(app: InstalledApp, dir: File): File {
+    /** The parts themselves, named after the app and what each is for, ready to share. */
+    fun exportParts(app: InstalledApp, parts: List<File>, dir: File): List<File> {
         dir.mkdirs()
-        val out = FileOps.freeName(dir, fileName(app))
+        return parts.map { apk ->
+            val what = if (apk == app.apks.first()) "base" else apk.nameWithoutExtension.removePrefix("split_")
+            FileOps.freeName(dir, "${cleanName(app)} ${app.version} $what.apk".replace("  ", " ")).also { apk.copyTo(it) }
+        }
+    }
+
+    /**
+     * Writes the app into [dir] and returns it: its APK, or for a split app one merged APK
+     * ([Form.UNIVERSAL], made with [signer]) or a bundle of the parts ([Form.BUNDLE]).
+     */
+    fun export(app: InstalledApp, dir: File, form: Form = Form.UNIVERSAL, signer: () -> Universal.Signer = { Universal.phoneSigner() }, work: File = dir): File {
+        dir.mkdirs()
+        val out = FileOps.freeName(dir, fileName(app, form))
         if (!app.split) {
             app.apks.first().copyTo(out)
+        } else if (form == Form.UNIVERSAL) {
+            Universal.make(app.apks, out, signer(), work)
         } else {
             ZipOutputStream(out.outputStream().buffered()).use { zip ->
                 app.apks.forEach { apk ->

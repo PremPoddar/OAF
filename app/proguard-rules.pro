@@ -43,3 +43,9 @@
 -keep class com.android.apksig.** { *; }
 -dontwarn com.reandroid.**
 -dontwarn com.android.apksig.**
+# ARSCLib carries its own copies of these framework classes. Renaming them would change the
+# signatures of view constructors (and anything else that takes them), which Android then can't
+# find when it inflates a layout, so they keep their names and the framework's versions are used.
+-keep class android.util.AttributeSet { *; }
+-keep class android.content.res.XmlResourceParser { *; }
+-keep class org.xmlpull.v1.** { *; }

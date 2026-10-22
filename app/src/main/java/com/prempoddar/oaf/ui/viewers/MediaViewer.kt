@@ -539,6 +539,8 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
     var loopA by remember { mutableStateOf<Long?>(null) }
     var loopB by remember { mutableStateOf<Long?>(null) }
     var resumedFrom by remember { mutableStateOf<Long?>(null) }
+    // Holding the picture plays it at double speed until the finger lifts; this is what to go back to.
+    var held by remember { mutableStateOf<Pair<Float, Boolean>?>(null) }
     val scope = rememberCoroutineScope()
     val key = source.uri.toString()
     val loadSubs = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -638,6 +640,22 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                     }
                     .pointerInput(locked) {
                         detectTapGestures(
+                            onPress = {
+                                tryAwaitRelease()
+                                held?.let { (speed, wasPlaying) ->
+                                    state.player.setPlaybackSpeed(speed)
+                                    if (!wasPlaying) state.player.pause()
+                                    held = null
+                                }
+                            },
+                            onLongPress = {
+                                if (locked) return@detectTapGestures
+                                held = state.speed to state.player.isPlaying
+                                state.player.setPlaybackSpeed(2f)
+                                state.player.play()
+                                controls = false
+                                Haptics.threshold()
+                            },
                             onTap = { controls = !controls },
                             onDoubleTap = { o ->
                                 if (locked) return@detectTapGestures
@@ -692,6 +710,14 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                     Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Replay, null, Modifier.size(18.dp))
                         Text("Resumed at ${formatTime(from)} · Start over", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+            AnimatedVisibility(held != null, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 24.dp)) {
+                Surface(color = Color.Black.copy(alpha = 0.55f), contentColor = Color.White, shape = CircleShape) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("2×", style = MaterialTheme.typography.titleSmall)
+                        Icon(Icons.Rounded.FastForward, null, Modifier.padding(start = 6.dp).size(20.dp))
                     }
                 }
             }

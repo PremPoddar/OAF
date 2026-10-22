@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         intent ?: return
+        if (intent.action == com.prempoddar.oaf.files.FtpService.OPEN) { com.prempoddar.oaf.files.FtpShare.openScreen.value = true; return }
         val uri: Uri = when (intent.action) {
             Intent.ACTION_VIEW, Intent.ACTION_EDIT -> intent.data
             Intent.ACTION_SEND -> @Suppress("DEPRECATION") (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)
@@ -111,6 +112,9 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
         nav.navigate("view/" + URLEncoder.encode(AppGraph.put(source), "UTF-8"))
     }
     LaunchedEffect(incoming.value) { incoming.value?.let { open(it); incoming.value = null } }
+    // The sharing notification opens its screen.
+    val openShare by com.prempoddar.oaf.files.FtpShare.openScreen.collectAsStateWithLifecycle()
+    LaunchedEffect(openShare) { if (openShare && picker == null) { com.prempoddar.oaf.files.FtpShare.openScreen.value = false; nav.navigate("share") { launchSingleTop = true } } }
     fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
     fun go(t: HomeTarget) = when (t) {
         is HomeTarget.Folder -> nav.navigate("folder/${enc(t.dir.path)}?search=${t.search}&focus=${enc(t.focus.orEmpty())}")
@@ -120,6 +124,7 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
         HomeTarget.Storage -> nav.navigate("storage")
         HomeTarget.Settings -> nav.navigate("settings")
         HomeTarget.Network -> nav.navigate("network")
+        HomeTarget.Share -> nav.navigate("share")
         HomeTarget.Batch -> nav.navigate("batch")
     }
     val back: () -> Unit = { nav.popBackStack() }
@@ -142,6 +147,7 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
         composable("apps") { AppsScreen(onBack = back) }
         composable("bin") { BinScreen(onBack = back) }
         composable("batch") { com.prempoddar.oaf.ui.edit.BatchScreen(onBack = back) }
+        composable("share") { com.prempoddar.oaf.ui.browser.ShareScreen(onBack = back) }
         composable("network") { com.prempoddar.oaf.ui.browser.NetworkScreen(onBack = back, onOpenServer = { sv -> nav.navigate("remote/${sv.id}") }) }
         composable("remote/{id}") { e ->
             val server = AppGraph.servers.get(e.arguments!!.getString("id")!!)

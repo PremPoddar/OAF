@@ -27,10 +27,21 @@ import androidx.compose.foundation.layout.statusBarsPadding
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(application = Application::class, sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
-class ScreensTest {
+open class ScreensTest {
+    /** Where the pictures go; the tablet runs below draw the same screens into their own folders. */
+    protected open val out = "build/screens"
+
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
-    @Before fun setUp() = AppGraph.init(ApplicationProvider.getApplicationContext())
+    @Before fun setUp() {
+        // Draw the app as it looks once "All files access" is allowed, with a few files about.
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        org.robolectric.shadows.ShadowEnvironment.addExternalDir("sdcard")
+        org.robolectric.Shadows.shadowOf(app.getSystemService(android.app.AppOpsManager::class.java))
+            .setMode("android:manage_external_storage", android.os.Process.myUid(), app.packageName, android.app.AppOpsManager.MODE_ALLOWED)
+        sampleFolder()
+        AppGraph.init(ApplicationProvider.getApplicationContext())
+    }
 
     private fun shoot(name: String, appearance: Appearance, content: @Composable () -> Unit) {
         rule.mainClock.autoAdvance = false
@@ -39,7 +50,7 @@ class ScreensTest {
         val view = rule.activity.window.decorView
         val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
         rule.runOnUiThread { view.draw(android.graphics.Canvas(bitmap)) }
-        File("build/screens").apply { mkdirs() }.resolve("$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        File(out).apply { mkdirs() }.resolve("$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     private val light = Appearance(mode = Appearance.Mode.LIGHT)
@@ -57,6 +68,13 @@ class ScreensTest {
             File(this, "song.mp3").writeText("x")
             File(this, ".hidden").writeText("x")
         }
+    }
+
+    @Config(qualifiers = "w411dp-h1500dp-xxhdpi")
+    @Test fun shareDark() {
+        // Saved settings, so no password has to be made with the phone's keystore.
+        File(ApplicationProvider.getApplicationContext<Application>().filesDir, "ftp.json").writeText("""{"secret":"x","user":"prem"}""")
+        shoot("share-dark", dark) { com.prempoddar.oaf.ui.browser.ShareScreen {} }
     }
 
     @Test fun homeLight() = shoot("home-light", light) { FilesHome({}, {}) }
@@ -101,7 +119,8 @@ class ScreensTest {
 
     private fun fakePlayer() = androidx.media3.exoplayer.ExoPlayer.Builder(ApplicationProvider.getApplicationContext()).build().apply {
         setMediaItem(androidx.media3.common.MediaItem.Builder().setUri("file:///nothing.mp3")
-            .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("Midnight City").setArtist("M83").build()).build())
+            .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("Night Drive").setArtist("Neon Coast")
+                .setArtworkData(javaClass.classLoader!!.getResourceAsStream("media/cover.jpg")!!.readBytes(), androidx.media3.common.MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()).build())
     }
 
     @Test fun audioPlayerDark() = shoot("audio-dark", dark) {
@@ -173,6 +192,8 @@ class ScreensTest {
 
     @Test fun slidesPptx() = fixture("decks/sample.pptx").let { f -> shoot("slides-pptx", light) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
     @Test fun slidesStyled() = fixture("decks/styled.pptx").let { f -> shoot("slides-styled", dark) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
+    @Test fun slidesPicnic() = fixture("decks/picnic.pptx").let { f -> shoot("slides-picnic", dark) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
+    @Test fun slidesPicnicLight() = fixture("decks/picnic.pptx").let { f -> shoot("slides-picnic-light", light) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
     @Test fun slidesPpt() = samplePpt().let { f -> shoot("slides-ppt", dark) { com.prempoddar.oaf.ui.viewers.SlidesScreen(openDeck(f)) {} } }
 
     @Config(qualifiers = "w891dp-h411dp-land-xxhdpi")

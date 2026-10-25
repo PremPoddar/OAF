@@ -118,7 +118,7 @@ fun ShareScreen(onBack: () -> Unit) {
                     val label = places.first { it.first == f }.second
                     Triple(
                         when { f.isEmpty() -> Icons.Rounded.Smartphone; roots.drop(1).any { it.dir.path == f } -> Icons.Rounded.SdStorage; else -> Icons.Rounded.Folder },
-                        label, if (f.isEmpty()) "Everything in storage" else File(f).name.takeUnless { it.equals(label, ignoreCase = true) } ?: "Just this folder",
+                        label, if (f.isEmpty()) "Everything in storage" else File(f).name.takeUnless { label.startsWith(it, ignoreCase = true) } ?: "Just this folder",
                     )
                 }
             }

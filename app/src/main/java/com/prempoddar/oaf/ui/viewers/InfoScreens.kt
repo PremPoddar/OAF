@@ -77,7 +77,7 @@ private fun InfoRow(label: String, value: String, mono: Boolean = false) {
     }
 }
 
-private class ApkInfo(
+internal class ApkInfo(
     val label: String, val icon: Drawable?, val pkg: String, val version: String, val code: Long, val minSdk: Int?, val targetSdk: Int?,
     val permissions: List<String>, val signer: String?, val installed: String?, val size: Long, val installedCode: Long? = null,
 )
@@ -88,15 +88,19 @@ private fun sdkName(level: Int) = "API $level" + when (level) {
     else -> ""
 }
 
-/** What an app package is, who signed it and what it asks for. Installing is left to the system installer. */
+/**
+ * What an app package is, who signed it and what it asks for. Installing is left to the system
+ * installer. [known] shows given details instead of reading the file (for drawing the screen in tests).
+ */
 @Composable
-fun ApkScreen(source: DocSource, onBack: () -> Unit) {
+internal fun ApkScreen(source: DocSource, onBack: () -> Unit, known: ApkInfo? = null) {
     val context = LocalContext.current
     val paper = LocalPaper.current
     var browsing by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     if (browsing) { ArchiveScreen(source, onBack = { browsing = false }, onOpen = {}); return }
-    val info by produceState<Result<ApkInfo>?>(null, source) {
+    val info by produceState(known?.let { Result.success(it) }, source) {
+        if (known != null) return@produceState
         value = withContext(Dispatchers.IO) {
             runCatching {
                 val file = Installer.baseApk(source.local(context), context.cacheDir)

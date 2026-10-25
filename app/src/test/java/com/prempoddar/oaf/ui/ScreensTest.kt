@@ -77,6 +77,33 @@ open class ScreensTest {
         shoot("share-dark", dark) { com.prempoddar.oaf.ui.browser.ShareScreen {} }
     }
 
+    /** An app package as the install screen shows it (Android's APK reader doesn't run in tests). */
+    @Test fun installApp() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val icon = javaClass.classLoader!!.getResourceAsStream("media/loadstone.png")!!.use { android.graphics.BitmapFactory.decodeStream(it) }
+        val apk = File(app.cacheDir, "Loadstone-1.1.apk").apply { writeText("x") }
+        val info = com.prempoddar.oaf.ui.viewers.ApkInfo(
+            "Loadstone", android.graphics.drawable.BitmapDrawable(app.resources, icon), "com.prempoddar.loadstone", "1.1", 2, 26, 36,
+            listOf("ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_LOCATION", "POST_NOTIFICATIONS", "RECORD_AUDIO", "VIBRATE").map { "android.permission.$it" },
+            "3B:9A:41:C7:0E:52:D8:6F:A1:24:7C:E9:5B:10:83:F6:2D:C4:97:38:E0:5A:6B:11:F2:8C:43:D9:70:AE:15:B6", null, 3_099_342,
+        )
+        shoot("install-dark", dark) { com.prempoddar.oaf.ui.viewers.ApkScreen(com.prempoddar.oaf.io.DocSource.fromFile(apk), onBack = {}, known = info) }
+    }
+
+    /** Sharing over Wi-Fi while it's on, with someone connected. */
+    @Test fun shareOn() {
+        File(ApplicationProvider.getApplicationContext<Application>().filesDir, "ftp.json").writeText("""{"secret":"x","user":"prem"}""")
+        com.prempoddar.oaf.files.FtpShare.update {
+            it.copy(running = true, addresses = listOf("ftp://192.168.1.24:2121"), clients = 1,
+                log = listOf("18:42  192.168.1.10 uploaded /Download/holiday.zip", "18:40  192.168.1.10 signed in", "18:39  Sharing /storage/emulated/0"))
+        }
+        try {
+            shoot("share-on", dark) { com.prempoddar.oaf.ui.browser.ShareScreen {} }
+        } finally {
+            com.prempoddar.oaf.files.FtpShare.update { com.prempoddar.oaf.files.FtpShare.State() }
+        }
+    }
+
     @Test fun homeLight() = shoot("home-light", light) { FilesHome({}, {}) }
     @Test fun homeDark() = shoot("home-dark", dark) { FilesHome({}, {}) }
     @Test fun folderDark() = sampleFolder().let { f -> shoot("folder-dark", dark) { FolderScreen(f, onOpen = {}, onBack = {}) } }

@@ -16,6 +16,7 @@ own code (`ScreensTest`, which also renders the tablet sizes into `app/build/scr
 
 ## Videos
 
+- `videos/OAF promo.mp4`: the promo video for the store listing (Main store listing → Video), with original music.
 - `videos/OAF MANAGE_EXTERNAL_STORAGE.mp4`: the All files access declaration (MANAGE_EXTERNAL_STORAGE).
 - `videos/OAF QUERY_ALL_PACKAGES.mp4`: the QUERY_ALL_PACKAGES declaration.
 - `videos/OAF REQUEST_INSTALL_PACKAGES.mp4`: the REQUEST_INSTALL_PACKAGES declaration.

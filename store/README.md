@@ -20,5 +20,6 @@ own code (`ScreensTest`, which also renders the tablet sizes into `app/build/scr
 - `videos/OAF QUERY_ALL_PACKAGES.mp4`: the QUERY_ALL_PACKAGES declaration.
 - `videos/OAF REQUEST_INSTALL_PACKAGES.mp4`: the REQUEST_INSTALL_PACKAGES declaration.
 - `videos/OAF FOREGROUND_SERVICE_MEDIA_PLAYBACK.mp4`: the media playback foreground service declaration.
+- `videos/OAF FOREGROUND_SERVICE_SPECIAL_USE.mp4`: the special use foreground service declaration (Share over Wi-Fi).
 
 Upload them to YouTube as unlisted and paste the links into the declarations (App content → Permissions).

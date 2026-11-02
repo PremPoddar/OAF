@@ -2,6 +2,14 @@ package com.prempoddar.oaf
 
 import android.app.Application
 import com.prempoddar.oaf.data.Prefs
+import com.prempoddar.oaf.data.ThumbType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import com.prempoddar.oaf.files.Bin
 import com.prempoddar.oaf.io.DocSource
 import java.io.File
@@ -19,6 +27,13 @@ object AppGraph {
     /** Deleted files wait here (on the same storage, so deleting is instant) until restored or emptied. */
     val bin by lazy { Bin(File(app.getExternalFilesDir(null) ?: app.filesDir, "bin")) }
     val servers by lazy { com.prempoddar.oaf.files.remote.Servers(File(app.filesDir, "network")) }
+
+    /** The file types whose previews are shown, kept ready for every row of every list. */
+    val thumbTypes by lazy {
+        prefs.settings.map { s -> if (s.thumbnails) ThumbType.entries.toSet() - s.thumbsOff else emptySet() }
+            .distinctUntilChanged()
+            .stateIn(CoroutineScope(SupervisorJob() + Dispatchers.Default), SharingStarted.Eagerly, ThumbType.entries.toSet())
+    }
 
     val clipboard by lazy { com.prempoddar.oaf.ui.browser.Clipboard() }
 

@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.prempoddar.oaf.AppGraph
 import com.prempoddar.oaf.format.Detector
 import com.prempoddar.oaf.format.FileKind
 import com.prempoddar.oaf.ui.LocalPaper
@@ -74,13 +76,17 @@ private val thumbs = object : LruCache<String, Bitmap>(48 * 1024 * 1024) {
 }
 private val thumbDispatcher = Dispatchers.IO.limitedParallelism(4)
 
-/** A small preview for pictures, videos, songs with cover art and app packages; null otherwise. */
+/**
+ * A small preview of the file's contents (pictures, videos, song covers, app icons, documents'
+ * first pages, books' covers…), or null for files without one or whose previews are turned off.
+ */
 @Composable
 fun rememberThumbnail(file: File, kind: FileKind?, px: Int = 256, media: android.net.Uri? = null): ImageBitmap? {
     val context = LocalContext.current
-    val canPreview = kind == FileKind.IMAGE || kind == FileKind.VIDEO || kind == FileKind.AUDIO || kind == FileKind.APK
-    val bitmap by produceState<ImageBitmap?>(null, file.path, file.lastModified()) {
-        if (!canPreview) return@produceState
+    val types by AppGraph.thumbTypes.collectAsStateWithLifecycle()
+    val canPreview = thumbTypeOf(kind)?.let { it in types } == true
+    val bitmap by produceState<ImageBitmap?>(null, file.path, file.lastModified(), canPreview) {
+        if (!canPreview) { value = null; return@produceState }
         val key = file.path + ":" + file.lastModified() + ":" + px
         thumbs.get(key)?.let { value = it.asImageBitmap(); return@produceState }
         value = withContext(thumbDispatcher) {
@@ -103,7 +109,7 @@ private fun loadThumb(context: Context, file: File, kind: FileKind, px: Int): Bi
             ai.publicSourceDir = file.path
             ai.loadIcon(context.packageManager).toBitmap(px / 2, px / 2)
         }
-        else -> null
+        else -> DocThumbs.load(context, file, kind, px)
     }
 }
 
@@ -119,7 +125,7 @@ fun KindMark(kind: FileKind?, file: File? = null, size: Dp = 44.dp, media: andro
         contentAlignment = Alignment.Center,
     ) {
         when {
-            thumb != null -> Image(thumb, null, contentScale = if (kind == FileKind.APK) ContentScale.Fit else ContentScale.Crop, modifier = Modifier.fillMaxSize().then(if (kind == FileKind.APK) Modifier.padding(6.dp) else Modifier))
+            thumb != null -> Image(thumb, null, contentScale = if (kind == FileKind.APK) ContentScale.Fit else ContentScale.Crop, alignment = if (isPage(kind)) Alignment.TopCenter else Alignment.Center, modifier = Modifier.fillMaxSize().then(if (kind == FileKind.APK) Modifier.padding(6.dp) else Modifier))
             kind == null -> Icon(Icons.Rounded.Folder, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
             else -> Text(extLabel(kind), style = MaterialTheme.typography.labelSmall, color = color)
         }
@@ -181,7 +187,7 @@ fun FileCell(e: Entry, selected: Boolean, onClick: () -> Unit, onLongClick: () -
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.large), contentAlignment = Alignment.Center) {
             if (thumb != null && e.kind != FileKind.APK) {
-                Image(thumb, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                Image(thumb, null, contentScale = ContentScale.Crop, alignment = if (isPage(e.kind)) Alignment.TopCenter else Alignment.Center, modifier = Modifier.fillMaxSize())
                 if (e.kind == FileKind.VIDEO) Icon(Icons.Rounded.PlayCircle, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(36.dp))
             } else {
                 KindMark(e.kind, e.file, 64.dp)

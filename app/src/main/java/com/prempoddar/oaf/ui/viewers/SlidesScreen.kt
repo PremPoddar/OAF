@@ -194,7 +194,7 @@ private fun SlideView(deck: Deck, slide: Slide, modifier: Modifier, fit: Boolean
 
 private val sans = Typeface.create("sans-serif", Typeface.NORMAL)
 
-private fun drawSlide(canvas: android.graphics.Canvas, slide: Slide, s: Float, pictures: Map<String, Bitmap>, width: Float, height: Float) {
+internal fun drawSlide(canvas: android.graphics.Canvas, slide: Slide, s: Float, pictures: Map<String, Bitmap>, width: Float, height: Float) {
     canvas.drawRect(0f, 0f, width, height, Paint().apply { color = 0xFF000000.toInt() or (slide.background ?: 0xFFFFFF) })
     // A background picture fills the slide, cropped to its shape like PowerPoint's "stretch".
     slide.backgroundImage?.let { pictures[it] }?.let { b ->

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CreateNewFolder
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PieChart
@@ -23,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.prempoddar.oaf.AppGraph
 import com.prempoddar.oaf.data.OafSettings
 import com.prempoddar.oaf.data.SortBy
+import com.prempoddar.oaf.data.ThumbType
 import com.prempoddar.oaf.ui.design.ExpressiveScaffold
 import com.prempoddar.oaf.ui.design.SettingsGroup
 import com.prempoddar.oaf.ui.design.SettingsRow
@@ -41,6 +43,14 @@ fun SettingsScreen(onBack: () -> Unit, onAppearance: () -> Unit, onAbout: () -> 
                 SettingsGroup("Look") {
                     SettingsRow("Appearance", "Theme, colours, font, shapes and haptics", Icons.Rounded.Palette, onClick = onAppearance) { Chevron() }
                     SwitchRow("Grid view", "Big previews instead of a list", Icons.Rounded.GridView, s.grid) { v -> update { it.copy(grid = v) } }
+                }
+            }
+            item {
+                SettingsGroup("Thumbnails") {
+                    SwitchRow("Show thumbnails", "Previews of what's inside files, instead of their type", Icons.Rounded.Image, s.thumbnails) { v -> update { it.copy(thumbnails = v) } }
+                    if (s.thumbnails) ThumbType.entries.forEach { t ->
+                        SwitchRow(t.label, null, null, t !in s.thumbsOff) { v -> update { it.copy(thumbsOff = if (v) it.thumbsOff - t else it.thumbsOff + t) } }
+                    }
                 }
             }
             item {

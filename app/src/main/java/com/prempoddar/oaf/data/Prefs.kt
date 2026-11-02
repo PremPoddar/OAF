@@ -18,6 +18,13 @@ import kotlinx.serialization.json.Json
 
 enum class SortBy { NAME, DATE, SIZE, TYPE }
 
+/** The kinds of file whose previews can be turned off one by one. */
+enum class ThumbType(val label: String) {
+    PICTURES("Pictures"), VIDEOS("Videos"), SONGS("Song covers"), APPS("App icons"),
+    PDF("PDFs"), DOCUMENTS("Word documents"), SHEETS("Spreadsheets"), SLIDES("Presentations"),
+    BOOKS("E-book covers"), TEXT("Text and code"), FONTS("Fonts"),
+}
+
 @Serializable
 data class Recent(
     val uri: String,
@@ -47,6 +54,10 @@ data class OafSettings(
      */
     val sorts: Map<String, Pair<SortBy, Boolean>> = emptyMap(),
     val favourites: List<String> = emptyList(),
+    /** Previews of files' contents instead of type labels. */
+    val thumbnails: Boolean = true,
+    /** Types whose previews are turned off, even with [thumbnails] on. */
+    val thumbsOff: Set<ThumbType> = emptySet(),
 )
 
 private val Context.dataStore by preferencesDataStore("settings")
@@ -72,6 +83,8 @@ class Prefs(private val context: Context) {
         val grid = booleanPreferencesKey("grid")
         val recents = stringPreferencesKey("recents")
         val favourites = stringPreferencesKey("favourites")
+        val thumbnails = booleanPreferencesKey("thumbnails")
+        val thumbsOff = stringPreferencesKey("thumbs_off")
     }
 
     val settings: Flow<OafSettings> = context.dataStore.data.map { it.toSettings() }
@@ -95,6 +108,8 @@ class Prefs(private val context: Context) {
             p[K.grid] = n.grid
             p[K.recents] = json.encodeToString(recentList, n.recents.take(MAX_RECENTS))
             p[K.favourites] = json.encodeToString(strings, n.favourites)
+            p[K.thumbnails] = n.thumbnails
+            p[K.thumbsOff] = n.thumbsOff.joinToString(",") { it.name }
         }
     }
 
@@ -129,6 +144,8 @@ class Prefs(private val context: Context) {
             grid = this[K.grid] ?: d.grid,
             recents = this[K.recents]?.let { runCatching { json.decodeFromString(recentList, it) }.getOrNull() } ?: d.recents,
             favourites = this[K.favourites]?.let { runCatching { json.decodeFromString(strings, it) }.getOrNull() } ?: d.favourites,
+            thumbnails = this[K.thumbnails] ?: d.thumbnails,
+            thumbsOff = this[K.thumbsOff].orEmpty().split(',').mapNotNull { n -> ThumbType.entries.firstOrNull { it.name == n } }.toSet(),
         )
     }
 

@@ -248,13 +248,13 @@ fun FolderScreen(start: File, startSearch: Boolean = false, focus: String? = nul
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(start = if (settings.grid) 12.dp else 0.dp, end = if (settings.grid) 12.dp else 0.dp, top = 4.dp, bottom = 120.dp),
                 ) {
-                    items(list, key = { it.file.path }) { e ->
+                    sectioned(list, sortBy, settings.foldersFirst, marked = snippets.isEmpty()) { e ->
                         val isSel = e.file in selected || e.file.name == lit
                         val click: () -> Unit = {
                             when {
                                 selecting -> { if (isSel) selected.remove(e.file) else selected.add(e.file) }
                                 e.isDir -> go(e.file)
-                                else -> onOpen(DocSource.fromFile(e.file))
+                                else -> { AppGraph.browsing = list.filter { !it.isDir }.map { it.file }; onOpen(DocSource.fromFile(e.file)) }
                             }
                         }
                         val long: () -> Unit = { if (isSel) selected.remove(e.file) else selected.add(e.file) }

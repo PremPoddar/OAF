@@ -39,6 +39,18 @@ fun outputFor(source: DocSource, ext: String): File {
     return FileOps.freeName(dir, EditGeometry.editedName(source.name, ext))
 }
 
+/** Adds [file] to Android's media index, then refreshes OAF's lists once it's there. */
+fun announce(context: android.content.Context, file: File) =
+    android.media.MediaScannerConnection.scanFile(context.applicationContext, arrayOf(file.path), null) { _, _ -> com.prempoddar.oaf.AppGraph.clipboard.changed() }
+
+/** A folder as people know it: "Internal storage › DCIM › Camera". */
+fun shownPath(dir: File?): String {
+    dir ?: return "OAF"
+    val root = Environment.getExternalStorageDirectory().path
+    val rel = dir.path.removePrefix(root).trim('/')
+    return if (dir.path.startsWith(root)) (listOf("Internal storage") + rel.split('/').filter { it.isNotEmpty() }).joinToString(" › ") else dir.path
+}
+
 @Composable
 fun EditorBar(title: String, onClose: () -> Unit, action: String, enabled: Boolean, onAction: () -> Unit) {
     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -52,6 +64,9 @@ fun EditorBar(title: String, onClose: () -> Unit, action: String, enabled: Boole
 @Composable
 fun ExportDialog(progress: Float?, saved: File?, error: String?, onCancel: () -> Unit, onDone: () -> Unit) {
     val context = LocalContext.current
+    // Galleries, and OAF's own Images and Videos, list what Android's media index knows about:
+    // a new file shows up there only once it's been added.
+    androidx.compose.runtime.LaunchedEffect(saved) { if (saved != null) announce(context, saved) }
     AlertDialog(
         onDismissRequest = { if (saved != null || error != null) onDone() },
         icon = if (saved != null) ({ Icon(Icons.Rounded.CheckCircle, null) }) else null,
@@ -60,7 +75,7 @@ fun ExportDialog(progress: Float?, saved: File?, error: String?, onCancel: () ->
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when {
                     error != null -> Text(error)
-                    saved != null -> Text("${saved.name}\nin ${saved.parentFile?.name}")
+                    saved != null -> Text("${saved.name}\nin ${shownPath(saved.parentFile)}")
                     progress != null -> {
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
                         Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)

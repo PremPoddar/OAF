@@ -13,6 +13,10 @@ class Playlist(val items: List<File>, val start: Int) {
 
         fun around(file: File): Playlist {
             val kinds = if (isVideo(file)) VIDEO else AUDIO
+            // The list it was opened from, in that order, when there is one.
+            val shown = com.prempoddar.oaf.AppGraph.browsing.takeIf { l -> l.any { it.path == file.path } }
+                ?.filter { it.extension.lowercase() in kinds }
+            if (shown != null) return Playlist(shown, shown.indexOfFirst { it.path == file.path })
             val items = file.parentFile?.listFiles()
                 ?.filter { it.isFile && !it.name.startsWith(".") && it.extension.lowercase() in kinds }
                 ?.sortedWith(NaturalOrder)

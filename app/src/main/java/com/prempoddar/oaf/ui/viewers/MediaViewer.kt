@@ -100,6 +100,7 @@ import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
@@ -167,6 +168,7 @@ import com.prempoddar.oaf.media.rememberPlayerState
 import com.prempoddar.oaf.ui.edit.MediaEditor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -532,6 +534,8 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
     // Pinch to zoom in on the picture and move around it.
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
+    // With other videos beside this one, a sideways swipe slides the picture and moves to the next.
+    val swipe = remember { androidx.compose.animation.core.Animatable(0f) }
     var view by remember { mutableStateOf<PlayerView?>(null) }
     var subtitleSize by remember { mutableFloatStateOf(1f) }
     var subtitleBox by remember { mutableStateOf(false) }
@@ -613,7 +617,7 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
         AndroidView(
             factory = { PlayerView(it).apply { useController = false; player = state.player; setKeepContentOnPlayerReset(true); setShutterBackgroundColor(android.graphics.Color.BLACK) }.also { v -> view = v } },
             update = { it.resizeMode = fit; if (it.player !== state.player) it.player = state.player },
-            modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y },
+            modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = zoom; scaleY = zoom; translationX = pan.x + swipe.value; translationY = pan.y },
         )
         if (!inPip) {
             Box(
@@ -666,18 +670,45 @@ internal fun VideoPlayer(state: PlayerState, source: DocSource, onBack: () -> Un
                     }
                     .pointerInput(locked) {
                         if (locked) return@pointerInput
-                        var mode = 0 // 1 seek, 2 brightness, 3 volume
+                        var mode = 0 // 1 seek, 2 brightness, 3 volume, 4 swipe to another video
                         var startX = 0f
                         var seekTo = 0L
                         var volumeAcc = 0f
                         detectDragGestures(
                             onDragStart = { o -> mode = 0; startX = o.x; seekTo = state.player.currentPosition; volumeAcc = 0f },
-                            onDragEnd = { if (mode == 1) state.player.seekTo(seekTo); mode = 0 },
-                            onDragCancel = { mode = 0 },
+                            onDragEnd = {
+                                if (mode == 1) state.player.seekTo(seekTo)
+                                if (mode == 4) {
+                                    val dx = swipe.value
+                                    val next = dx < 0 && state.index < state.count - 1
+                                    val previous = dx > 0 && state.index > 0
+                                    scope.launch {
+                                        if (kotlin.math.abs(dx) > w * 0.22f && (next || previous)) {
+                                            // Off the edge, then the other video comes in from the opposite side.
+                                            swipe.animateTo(if (dx < 0) -w else w, androidx.compose.animation.core.tween(160))
+                                            if (next) state.player.seekToNextMediaItem() else state.player.seekToPreviousMediaItem()
+                                            state.player.play()
+                                            swipe.snapTo(if (dx < 0) w else -w)
+                                        }
+                                        swipe.animateTo(0f, androidx.compose.animation.core.tween(220))
+                                    }
+                                }
+                                mode = 0
+                            },
+                            onDragCancel = { if (mode == 4) scope.launch { swipe.animateTo(0f) }; mode = 0 },
                         ) { change, drag ->
                             change.consume()
-                            if (mode == 0) mode = if (kotlin.math.abs(drag.x) > kotlin.math.abs(drag.y)) 1 else if (startX < w / 2) 2 else 3
+                            if (mode == 0) mode = if (kotlin.math.abs(drag.x) > kotlin.math.abs(drag.y)) (if (state.count > 1 && zoom == 1f) 4 else 1) else if (startX < w / 2) 2 else 3
                             when (mode) {
+                                4 -> {
+                                    scope.launch { swipe.snapTo(swipe.value + drag.x) }
+                                    val far = kotlin.math.abs(swipe.value) > w * 0.22f
+                                    feedback = when {
+                                        swipe.value < 0 && state.index < state.count - 1 -> Triple(Icons.Rounded.SkipNext, if (far) "Let go for the next video" else "Next video", Alignment.Center)
+                                        swipe.value > 0 && state.index > 0 -> Triple(Icons.Rounded.SkipPrevious, if (far) "Let go for the previous video" else "Previous video", Alignment.Center)
+                                        else -> Triple(Icons.Rounded.Block, if (swipe.value < 0) "This is the last video" else "This is the first video", Alignment.Center)
+                                    }
+                                }
                                 1 -> {
                                     seekTo = (seekTo + (drag.x / w * 90_000).toLong()).coerceIn(0, state.duration.coerceAtLeast(0))
                                     feedback = Triple(Icons.Rounded.Forward10, "${formatTime(seekTo)} / ${formatTime(state.duration)}", Alignment.Center)

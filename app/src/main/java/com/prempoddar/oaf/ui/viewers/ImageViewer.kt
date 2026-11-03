@@ -8,7 +8,21 @@ import android.graphics.drawable.Drawable
 import android.widget.ImageView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.unit.dp
+import com.prempoddar.oaf.AppGraph
+import com.prempoddar.oaf.media.Pictures
+import com.prempoddar.oaf.ui.browser.NaturalOrder
+import com.prempoddar.oaf.ui.browser.kindOf
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
@@ -16,7 +30,6 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.RotateRight
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -61,17 +74,53 @@ private sealed interface Loaded {
     data class Failed(val reason: String) : Loaded
 }
 
-/** Photos and pictures, including HEIC/AVIF, animated GIF/WebP and SVG. Pinch to zoom, drag to pan. */
+/**
+ * Photos and pictures, including HEIC/AVIF, animated GIF/WebP and SVG. Pinch to zoom, drag to pan,
+ * and swipe sideways to the pictures beside this one in the list it was opened from.
+ */
 @Composable
 fun ImageViewer(source: DocSource, onBack: () -> Unit) {
-    var editing by remember { mutableStateOf(false) }
-    if (editing && source.kind != FileKind.SVG) {
-        com.prempoddar.oaf.ui.edit.ImageEditor(source, onClose = { editing = false })
+    var editing by remember { mutableStateOf<DocSource?>(null) }
+    editing?.let { e ->
+        com.prempoddar.oaf.ui.edit.ImageEditor(e, onClose = { editing = null })
         return
     }
+    val chrome = rememberChrome()
+    val context = LocalContext.current
+    val files by produceState<List<java.io.File>?>(null, source) { value = withContext(Dispatchers.IO) { picturesAround(source) } }
+    val list = files ?: run { Box(Modifier.fillMaxSize().background(LocalPaper.current.page)); return }
+    if (list.size <= 1) {
+        ImagePage(source, chrome, onBack, onEdit = { editing = source }, onZoom = {})
+        return
+    }
+    val start = list.indexOfFirst { it.path == source.file?.path }.coerceAtLeast(0)
+    val pager = rememberPagerState(start) { list.size }
+    var zoomed by remember { mutableStateOf(false) }
+    // Zoomed in, a sideways drag moves around the picture instead of on to the next.
+    HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = !zoomed, beyondViewportPageCount = 1, pageSpacing = 16.dp, key = { list[it].path }) { i ->
+        val page by produceState(if (i == start) source else null, list[i]) {
+            if (value == null) value = withContext(Dispatchers.IO) { DocSource.fromFile(list[i]).let { runCatching { it.detect(context) }.getOrDefault(it) } }
+        }
+        val p = page
+        if (p == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        else ImagePage(p, chrome, onBack, onEdit = { editing = p }, onZoom = { if (pager.currentPage == i) zoomed = it })
+    }
+}
+
+/** The pictures to swipe through: the list this one was opened from, else its folder by name. */
+private fun picturesAround(source: DocSource): List<java.io.File> {
+    val file = source.file ?: return emptyList()
+    fun isPicture(f: java.io.File) = kindOf(f).let { it == FileKind.IMAGE || it == FileKind.SVG }
+    val shown = AppGraph.browsing.takeIf { l -> l.any { it.path == file.path } }
+    if (shown != null) return shown.filter { it.path == file.path || isPicture(it) }
+    return file.parentFile?.listFiles()?.filter { it.isFile && !it.name.startsWith(".") && (it.path == file.path || isPicture(it)) }
+        ?.sortedWith(compareBy(NaturalOrder) { it.name }) ?: listOf(file)
+}
+
+@Composable
+private fun ImagePage(source: DocSource, chrome: com.prempoddar.oaf.ui.ChromeState, onBack: () -> Unit, onEdit: () -> Unit, onZoom: (Boolean) -> Unit) {
     val context = LocalContext.current
     val paper = LocalPaper.current
-    val chrome = rememberChrome()
     var rotation by remember { mutableFloatStateOf(0f) }
     val screenPx = with(androidx.compose.ui.platform.LocalConfiguration.current) { (maxOf(screenWidthDp, screenHeightDp) * context.resources.displayMetrics.density).toInt() }
     val loaded by produceState<Loaded?>(null, source) {
@@ -89,11 +138,11 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
                 } else if (mayAnimate(source)) {
                     val d = ImageDecoder.decodeDrawable(imageSource(context, source)) { decoder, info, _ -> fitInside(decoder, info, 2048) }
                     if (d is AnimatedImageDrawable) Loaded.Animated(d.also { it.start() })
-                    else Loaded.Still(ImageDecoder.decodeBitmap(imageSource(context, source)) { decoder, info, _ -> fitInside(decoder, info, screenPx) })
+                    else Loaded.Still(Pictures.decode(context, source, screenPx))
                 } else {
                     // The size of the screen first, decoded straight into graphics memory: quick to
                     // show. A sharper copy is decoded only if the picture is zoomed into.
-                    Loaded.Still(ImageDecoder.decodeBitmap(imageSource(context, source)) { decoder, info, _ -> fitInside(decoder, info, screenPx) })
+                    Loaded.Still(Pictures.decode(context, source, screenPx))
                 }
             }.getOrElse { Loaded.Failed(it.message ?: "This image couldn't be decoded") }
         }
@@ -105,10 +154,11 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
     val sharp by produceState<Bitmap?>(null, source, zoomed) {
         if (zoomed && value == null && loaded is Loaded.Still) {
             value = withContext(Dispatchers.IO) {
-                runCatching { ImageDecoder.decodeBitmap(imageSource(context, source)) { d, info, _ -> fitInside(d, info, 4096) } }.getOrNull()
+                runCatching { Pictures.decode(context, source, 4096) }.getOrNull()
             }
         }
     }
+    LaunchedEffect(scale > 1f) { onZoom(scale > 1f) }
     var menu by remember { mutableStateOf(false) }
     var pendingMime by remember { mutableStateOf("image/png") }
     val scope = rememberCoroutineScope()
@@ -119,7 +169,7 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         scope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    val base = ImageDecoder.decodeBitmap(imageSource(context, source)) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
+                    val base = Pictures.decode(context, source, 16384, software = true)
                     val turned = if (rotation == 0f) base else Bitmap.createBitmap(base, 0, 0, base.width, base.height, android.graphics.Matrix().apply { postRotate(rotation) }, true)
                     val format = when (mime) { "image/jpeg" -> Bitmap.CompressFormat.JPEG; "image/webp" -> if (android.os.Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else @Suppress("DEPRECATION") Bitmap.CompressFormat.WEBP; else -> Bitmap.CompressFormat.PNG }
                     // JPEG has no transparency: transparent areas become white rather than black.
@@ -137,7 +187,7 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         title = source.name, subtitle = (loaded as? Loaded.Still)?.bitmap?.let { "${it.width} × ${it.height}" },
         chrome = chrome, themeToggle = false, onBack = onBack,
         actions = {
-            if (source.kind != FileKind.SVG) IconButton(onClick = tap { editing = true }) { Icon(Icons.Rounded.Edit, "Edit") }
+            if (source.kind != FileKind.SVG) IconButton(onClick = tap(onEdit)) { Icon(Icons.Rounded.Edit, "Edit") }
             IconButton(onClick = tap { rotation = (rotation + 90f) % 360f }) { Icon(Icons.AutoMirrored.Rounded.RotateRight, "Rotate") }
             IconButton(onClick = tap { shareSource(context, source) }) { Icon(Icons.Rounded.Share, "Share") }
             Box {
@@ -161,9 +211,18 @@ fun ImageViewer(source: DocSource, onBack: () -> Unit) {
         Box(
             Modifier.fillMaxSize()
                 .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 8f)
-                        offset = if (scale == 1f) Offset.Zero else offset + pan
+                    // Two fingers zoom; once zoomed, one finger moves around. A single finger on a
+                    // picture that isn't zoomed is left alone, so it can swipe to the next one.
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        do {
+                            val event = awaitPointerEvent()
+                            if (event.changes.count { it.pressed } >= 2 || scale > 1f) {
+                                scale = (scale * event.calculateZoom()).coerceIn(1f, 8f)
+                                offset = if (scale == 1f) Offset.Zero else offset + event.calculatePan()
+                                event.changes.forEach { if (it.positionChanged()) it.consume() }
+                            }
+                        } while (event.changes.any { it.pressed })
                     }
                 }
                 .pointerInput(Unit) {

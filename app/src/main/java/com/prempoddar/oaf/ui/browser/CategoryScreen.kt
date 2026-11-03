@@ -163,9 +163,9 @@ fun CategoryScreen(category: Category, onOpen: (DocSource) -> Unit, onBack: () -
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(start = if (grid) 12.dp else 0.dp, end = if (grid) 12.dp else 0.dp, bottom = 120.dp),
                 ) {
-                    items(list, key = { it.file.path }) { e ->
+                    sectioned(list, settings.sortFor(place).first, foldersFirst = false) { e ->
                         val isSel = e.file in selected
-                        val click = { if (selecting) { if (isSel) selected.remove(e.file) else selected.add(e.file) } else onOpen(DocSource.fromFile(e.file)); Unit }
+                        val click = { if (selecting) { if (isSel) selected.remove(e.file) else selected.add(e.file) } else { AppGraph.browsing = list.filter { !it.isDir }.map { it.file }; onOpen(DocSource.fromFile(e.file)) }; Unit }
                         val long = { if (isSel) selected.remove(e.file) else selected.add(e.file); Unit }
                         if (grid) FileCell(e, isSel, click, long) else FileRow(e, isSel, selecting, click, long, extra = e.file.parentFile?.name)
                     }

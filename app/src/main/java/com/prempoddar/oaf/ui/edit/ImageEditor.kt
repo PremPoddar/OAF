@@ -148,13 +148,7 @@ fun ImageEditor(source: DocSource, onClose: () -> Unit) {
     val loaded by produceState<Bitmap?>(null, source) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                val src = source.file?.let { ImageDecoder.createSource(it) } ?: ImageDecoder.createSource(context.contentResolver, source.uri)
-                ImageDecoder.decodeBitmap(src) { d, info, _ ->
-                    d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                    d.isMutableRequired = false
-                    val scale = maxOf(info.size.width, info.size.height) / 4096f
-                    if (scale > 1) d.setTargetSize((info.size.width / scale).toInt(), (info.size.height / scale).toInt())
-                }.let { if (it.config == Bitmap.Config.ARGB_8888) it else it.copy(Bitmap.Config.ARGB_8888, false) }
+                com.prempoddar.oaf.media.Pictures.decode(context, source, 4096, software = true).let { if (it.config == Bitmap.Config.ARGB_8888) it else it.copy(Bitmap.Config.ARGB_8888, false) }
             }.getOrNull()
         }
     }

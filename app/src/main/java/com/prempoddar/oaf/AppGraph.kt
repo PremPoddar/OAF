@@ -37,6 +37,12 @@ object AppGraph {
 
     val clipboard by lazy { com.prempoddar.oaf.ui.browser.Clipboard() }
 
+    /**
+     * The files of the list a file was last opened from, in the order shown, so the viewer can
+     * swipe to the ones beside it (photos in a category sorted by date, say, not by name).
+     */
+    @Volatile var browsing: List<File> = emptyList()
+
     /** Files handed between screens: navigation arguments can only carry a key. */
     private val open = ConcurrentHashMap<String, DocSource>()
     fun put(source: DocSource): String = source.uri.toString().also { open[it] = source }

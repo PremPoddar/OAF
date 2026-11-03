@@ -9,8 +9,9 @@
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
 [![Website](https://img.shields.io/badge/Website-prempoddar.github.io%2FOAF-F2913F)](https://prempoddar.github.io/OAF/)
+[![Latest release](https://img.shields.io/github/v/release/PremPoddar/OAF?label=Download&logo=android&logoColor=white&color=F2913F)](https://github.com/PremPoddar/OAF/releases/latest)
 
-**[Website](https://prempoddar.github.io/OAF/)** · **[Download](https://github.com/PremPoddar/OAF/releases)** · **[Privacy](https://prempoddar.github.io/OAF/privacy/)** · **[Report a problem](https://github.com/PremPoddar/OAF/issues)**
+**[Website](https://prempoddar.github.io/OAF/)** · **[Download APK](https://github.com/PremPoddar/OAF/releases/latest)** · **[Privacy](https://prempoddar.github.io/OAF/privacy/)** · **[Report a problem](https://github.com/PremPoddar/OAF/issues)**
 
 </div>
 

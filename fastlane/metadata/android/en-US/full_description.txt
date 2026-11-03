@@ -1,0 +1,11 @@
+<p><b>OAF stands for Open Any File: it opens any file on your phone, and edits most of them.</b> PDFs, Word and Excel, slides, books, archives, pictures, music and video, in one quiet, fast app. Nothing is uploaded; it all happens on your phone.</p>
+<ul>
+<li><b>Documents:</b> read, annotate, fill and sign PDFs; edit Word and Excel; view slides.</li>
+<li><b>Books and text:</b> EPUB, Markdown and code with highlighting.</li>
+<li><b>Pictures:</b> crop, filters, drawing and text, blur faces, remove the background, copy text out of a photo; swipe between photos.</li>
+<li><b>Music and video</b> with a proper player, picture-in-picture and swipe between videos.</li>
+<li><b>Archives:</b> open and make zip, 7z and tar; open rar.</li>
+<li><b>A real file manager:</b> search inside documents, a 30-day bin, storage clean-up, previews, and network drives (SMB, SFTP, FTP, WebDAV).</li>
+<li><b>Apps:</b> share installed apps, even split ones, as one installable APK.</li>
+<li><b>Share over Wi-Fi</b> with a built-in FTP server.</li>
+</ul>

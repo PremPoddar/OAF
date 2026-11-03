@@ -1,0 +1,1 @@
+• Back goes back where you came from: when another app opens a file or an APK with OAF, going back now returns to that app, even after installing the APK.

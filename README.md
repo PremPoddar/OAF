@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".github/assets/banner.png" alt="OAF: open all files" width="100%">
+<img src=".github/assets/banner.png" alt="OAF: open any file" width="100%">
 
 <br><br>
 
@@ -17,7 +17,7 @@
 
 ---
 
-**OAF opens almost any file on your phone, and edits most of them.** PDFs, Word and Excel, slides,
+**OAF stands for Open Any File: it opens any file on your phone, and edits most of them.** PDFs, Word and Excel, slides,
 books, archives, pictures, music and video, in one quiet, fast app that is reader first: the page is
 the interface, and the bars slide away while you read. Open files from its own browser, from Recents,
 from a network drive, or from any other app with *Open with*. Nothing is uploaded; it all happens on

@@ -24,8 +24,8 @@ android {
         applicationId = "com.prempoddar.oaf"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.2.2"
+        versionCode = 7
+        versionName = "1.2.3"
     }
 
     signingConfigs {

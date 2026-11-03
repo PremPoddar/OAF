@@ -157,7 +157,7 @@ fun FilesHome(onOpen: (DocSource) -> Unit, onGo: (HomeTarget) -> Unit) {
                 Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Files", style = MaterialTheme.typography.displaySmall)
-                        Text("Open all files", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Open any file", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     FilledTonalIconButton(onClick = tap { onGo(HomeTarget.Settings) }) { Icon(Icons.Rounded.Settings, "Settings") }
                 }

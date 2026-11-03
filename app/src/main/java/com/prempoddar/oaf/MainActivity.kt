@@ -164,7 +164,7 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
         }
         composable("about") {
             AboutScreen(
-                "OAF", "Open all files: documents, sheets, slides, books, media and archives, all on your phone.",
+                "OAF", "Open any file: documents, sheets, slides, books, media and archives, all on your phone.",
                 icon = { LayeredIcon(R.drawable.ic_launcher_background, R.drawable.ic_launcher_foreground) },
                 credits = listOf(
                     Credit("pdf.js", "Apache 2.0"),

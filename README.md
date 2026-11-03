@@ -11,7 +11,7 @@
 [![Website](https://img.shields.io/badge/Website-prempoddar.github.io%2FOAF-F2913F)](https://prempoddar.github.io/OAF/)
 [![Latest release](https://img.shields.io/github/v/release/PremPoddar/OAF?label=Download&logo=android&logoColor=white&color=F2913F)](https://github.com/PremPoddar/OAF/releases/latest)
 
-**[Website](https://prempoddar.github.io/OAF/)** · **[Download APK](https://github.com/PremPoddar/OAF/releases/latest)** · **[Privacy](https://prempoddar.github.io/OAF/privacy/)** · **[Report a problem](https://github.com/PremPoddar/OAF/issues)**
+**[Website](https://prempoddar.github.io/OAF/)** · **[Download APK](https://github.com/PremPoddar/OAF/releases/latest)** · **[F-Droid repo](https://prempoddar.github.io/fdroid/repo?fingerprint=B22CDB8846EA991100C5D8DD2CBB893AF2C51B72406210B94B9F8C9B539E8BF6)** · **[Privacy](https://prempoddar.github.io/OAF/privacy/)** · **[Report a problem](https://github.com/PremPoddar/OAF/issues)**
 
 </div>
 

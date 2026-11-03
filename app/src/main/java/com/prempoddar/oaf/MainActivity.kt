@@ -49,7 +49,6 @@ import java.net.URLEncoder
 class MainActivity : ComponentActivity() {
     /** A file another app asked us to open. */
     private val incoming = mutableStateOf<DocSource?>(null)
-    private var openedFromOutside = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,7 +59,7 @@ class MainActivity : ComponentActivity() {
             val settings: OafSettings? by AppGraph.prefs.settings.collectAsStateWithLifecycle(null)
             val s = settings ?: return@setContent
             OafTheme(s.appearance) {
-                OafNav(s, incoming, openedFromOutside, ::finish)
+                OafNav(s, incoming, ::finish)
             }
         }
     }
@@ -88,7 +87,6 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_SEND -> @Suppress("DEPRECATION") (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)
             else -> null
         } ?: return
-        openedFromOutside = true
         // Read now, while the other app's permission is fresh; see DocSource.received.
         val type = intent.type
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -103,15 +101,15 @@ class MainActivity : ComponentActivity() {
  * another app is choosing a file ([picker] is set then).
  */
 @androidx.compose.runtime.Composable
-internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableState<DocSource?>, openedFromOutside: Boolean, finish: () -> Unit, picker: com.prempoddar.oaf.pick.PickRequest? = null) {
+internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableState<DocSource?>, finish: () -> Unit, picker: com.prempoddar.oaf.pick.PickRequest? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val nav = rememberNavController()
-    fun open(source: DocSource) {
+    fun open(source: DocSource, outside: Boolean = false) {
         // Picking for another app: the file goes back to it rather than opening here.
         if (picker != null) { picker.offer(context, source); return }
-        nav.navigate("view/" + URLEncoder.encode(AppGraph.put(source), "UTF-8"))
+        nav.navigate("view/" + URLEncoder.encode(AppGraph.put(source), "UTF-8") + "?outside=$outside")
     }
-    LaunchedEffect(incoming.value) { incoming.value?.let { open(it); incoming.value = null } }
+    LaunchedEffect(incoming.value) { incoming.value?.let { open(it, outside = true); incoming.value = null } }
     // The sharing notification opens its screen.
     val openShare by com.prempoddar.oaf.files.FtpShare.openScreen.collectAsStateWithLifecycle()
     LaunchedEffect(openShare) { if (openShare && picker == null) { com.prempoddar.oaf.files.FtpShare.openScreen.value = false; nav.navigate("share") { launchSingleTop = true } } }
@@ -181,13 +179,21 @@ internal fun OafNav(s: OafSettings, incoming: androidx.compose.runtime.MutableSt
                 onBack = back,
             )
         }
-        composable("view/{key}") { e ->
+        composable("view/{key}?outside={outside}", arguments = listOf(navArgument("outside") { type = NavType.BoolType; defaultValue = false })) { e ->
             val key = java.net.URLDecoder.decode(e.arguments!!.getString("key")!!, "UTF-8")
             // Kept for the life of this screen: a new source on every redraw would start loading again.
             val source = remember(key) { AppGraph.get(key) ?: DocSource.fromUri(context, Uri.parse(key)).also { AppGraph.put(it) } }
-            // Opened from another app: back (button or swipe) returns there instead of to OAF's home.
-            val leave = openedFromOutside && nav.previousBackStackEntry?.destination?.route == "browser"
-            val onBack: () -> Unit = { if (leave) finish() else nav.popBackStack() }
+            // Opened from another app: back (button or swipe) returns there instead of to OAF's home,
+            // even after a detour such as Android's installer. Kept in the route, so it survives
+            // OAF being recreated meanwhile. If OAF was already open, it steps back behind that app.
+            val leave = e.arguments!!.getBoolean("outside")
+            val onBack: () -> Unit = {
+                when {
+                    !leave -> nav.popBackStack()
+                    nav.previousBackStackEntry?.destination?.route == "browser" -> finish()
+                    else -> { nav.popBackStack(); (context as? android.app.Activity)?.moveTaskToBack(true) }
+                }
+            }
             BackHandler(leave) { onBack() }
             // Pages can be light or dark on their own; the app around them keeps its look.
             OafTheme(s.appearance.copy(mode = if (s.viewerMode == Appearance.Mode.SYSTEM) s.appearance.mode else s.viewerMode)) {

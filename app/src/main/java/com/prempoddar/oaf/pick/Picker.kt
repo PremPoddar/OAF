@@ -133,7 +133,7 @@ class PickActivity : ComponentActivity() {
             val s = settings ?: return@setContent
             OafTheme(s.appearance) {
                 androidx.compose.runtime.CompositionLocalProvider(LocalPicker provides request) {
-                    OafNav(s, incoming, openedFromOutside = false, finish = ::finish, picker = request)
+                    OafNav(s, incoming, finish = ::finish, picker = request)
                 }
             }
         }

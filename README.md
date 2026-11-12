@@ -8,10 +8,10 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.1-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
-[![Website](https://img.shields.io/badge/Website-prempoddar.github.io%2FOAF-F2913F)](https://prempoddar.github.io/OAF/)
+[![Website](https://img.shields.io/badge/Website-prempoddar.is-a.dev%2FOAF-F2913F)](https://prempoddar.is-a.dev/OAF/)
 [![Latest release](https://img.shields.io/github/v/release/PremPoddar/OAF?label=Download&logo=android&logoColor=white&color=F2913F)](https://github.com/PremPoddar/OAF/releases/latest)
 
-**[Website](https://prempoddar.github.io/OAF/)** · **[Download APK](https://github.com/PremPoddar/OAF/releases/latest)** · **[F-Droid repo](https://prempoddar.github.io/fdroid/repo?fingerprint=B22CDB8846EA991100C5D8DD2CBB893AF2C51B72406210B94B9F8C9B539E8BF6)** · **[Privacy](https://prempoddar.github.io/OAF/privacy/)** · **[Report a problem](https://github.com/PremPoddar/OAF/issues)**
+**[Website](https://prempoddar.is-a.dev/OAF/)** · **[Download APK](https://github.com/PremPoddar/OAF/releases/latest)** · **[F-Droid repo](https://prempoddar.is-a.dev/fdroid/repo?fingerprint=B22CDB8846EA991100C5D8DD2CBB893AF2C51B72406210B94B9F8C9B539E8BF6)** · **[Privacy](https://prempoddar.is-a.dev/OAF/privacy/)** · **[Report a problem](https://github.com/PremPoddar/OAF/issues)**
 
 </div>
 
@@ -156,7 +156,7 @@ signature isn't the developer's, it can't update a copy from a store.
 No account, no analytics, no ads. Files are opened and edited on the phone. OAF goes online only to
 play a link another app sends it or to reach a network drive you added; server passwords are
 encrypted by Android's keystore. The full policy is at
-**[prempoddar.github.io/OAF/privacy](https://prempoddar.github.io/OAF/privacy/)**.
+**[prempoddar.is-a.dev/OAF/privacy](https://prempoddar.is-a.dev/OAF/privacy/)**.
 
 ## ⚠️ Limits
 
